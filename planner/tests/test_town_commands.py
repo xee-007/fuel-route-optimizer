@@ -47,6 +47,26 @@ class BuildTownsFileTests(SimpleTestCase):
     def test_skips_areas_outside_the_fifty_states_and_dc(self):
         self.assertNotIn("PR", {state for _, state in self.build()})
 
+    def test_adds_everyday_name_given_in_parentheses(self):
+        towns = self.build()
+        self.assertEqual(towns[("Ventura", "CA")], towns[("San Buenaventura", "CA")])
+
+    def test_uses_core_city_name_for_any_city_county_merger(self):
+        towns = self.build()
+        self.assertIn(("Macon", "GA"), towns)  # "Macon-Bibb County"
+        self.assertIn(("Butte", "MT"), towns)  # "Butte-Silver Bow (balance)"
+
+    def test_real_town_wins_over_another_towns_alias(self):
+        # "Tharptown (Uniontown) CDP" comes first in the file, but "Uniontown, PA"
+        # must still point at the real city of Uniontown.
+        towns = self.build()
+        self.assertEqual(towns[("Uniontown", "PA")], ("39.899302", "-79.724529"))
+
+    def test_adds_everyday_names_for_known_census_naming_quirks(self):
+        towns = self.build()
+        self.assertEqual(towns[("Honolulu", "HI")], towns[("Urban Honolulu", "HI")])
+        self.assertEqual(towns[("Boise", "ID")], towns[("Boise City", "ID")])
+
 
 class LoadTownsTests(TestCase):
     def load(self, path: Path = FIXTURES / "towns.csv") -> str:
