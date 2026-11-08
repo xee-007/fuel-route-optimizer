@@ -2,8 +2,6 @@
 
 A Django API that plans a driving route between two US locations and picks the cheapest places to refuel along the way.
 
-> 🚧 Work in progress. See [`docs/design.md`](docs/design.md) for the full design.
-
 ## Requirements
 
 - Python 3.12+
