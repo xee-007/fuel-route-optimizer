@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest import mock
 
 from django.conf import settings
@@ -11,6 +12,9 @@ class VehicleSettingsTests(SimpleTestCase):
     def test_vehicle_constants_match_brief(self):
         self.assertEqual(settings.VEHICLE_RANGE_MILES, 500)
         self.assertEqual(settings.VEHICLE_MPG, 10)
+
+    def test_minimum_saving_worth_an_extra_stop_is_five_cents(self):
+        self.assertEqual(settings.MIN_SAVING_PER_GALLON, Decimal("0.05"))
 
 
 class RequireEnvTests(SimpleTestCase):
