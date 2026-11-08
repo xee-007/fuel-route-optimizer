@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local settings and secrets
+.env
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+
+# Raw Census downloads used to rebuild data/us_towns.csv
+data/raw/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
