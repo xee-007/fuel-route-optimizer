@@ -6,6 +6,7 @@ For local development, copy `.env.example` to `.env` and fill it in.
 """
 
 import os
+from decimal import Decimal
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -133,6 +134,9 @@ FUEL_CORRIDOR_MILES = 10
 STOP_SPACING_MILES = 25
 # The tank starts empty and is filled at the cheapest station this close to the start.
 START_STATION_RADIUS_MILES = 25
+# A cheaper station is only worth an extra stop if it saves at least this much
+# per gallon. Set to 0 for the mathematically cheapest plan (more stops).
+MIN_SAVING_PER_GALLON = Decimal("0.05")
 
 # OpenRouteService (free routing API). Get a key at https://openrouteservice.org.
 ORS_API_KEY = os.environ.get("ORS_API_KEY", "")
