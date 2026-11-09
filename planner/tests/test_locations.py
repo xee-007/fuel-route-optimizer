@@ -56,8 +56,15 @@ class ResolveCoordinatesTests(TestCase):
             resolve_location("51.5074,-0.1278")  # London
 
     def test_swapped_coordinates_are_rejected_with_hint(self):
-        with self.assertRaisesMessage(LocationError, "lat,lng"):
+        with self.assertRaisesMessage(
+            LocationError, 'looks swapped. Put latitude first, as "lat,lng": "41.8781,-87.6298"'
+        ):
             resolve_location("-87.6298,41.8781")
+
+    def test_swapped_western_coordinates_get_the_hint_too(self):
+        # A western longitude (below -90) typed first is also out of latitude range.
+        with self.assertRaisesMessage(LocationError, '"37.7749,-122.4194"'):
+            resolve_location("-122.4194,37.7749")  # San Francisco, swapped
 
     def test_impossible_coordinates_rejected(self):
         with self.assertRaises(LocationError):

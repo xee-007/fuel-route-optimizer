@@ -52,15 +52,15 @@ def _resolve_coordinates(lat_text: str, lng_text: str) -> Location:
     lat, lng = float(lat_text), float(lng_text)
     typed = f"{lat_text},{lng_text}"
 
+    # Check for swapped values first: a western longitude such as -122 typed as
+    # the latitude would otherwise just look "not valid".
+    if not _is_in_usa(lat, lng) and _is_in_usa(lng, lat):
+        raise LocationError(
+            f'"{typed}" looks swapped. Put latitude first, as "lat,lng": "{lng_text},{lat_text}".'
+        )
     if not (-90 <= lat <= 90 and -180 <= lng <= 180):
         raise LocationError(f'"{typed}" are not valid coordinates. {FORMAT_HINT}')
-
     if not _is_in_usa(lat, lng):
-        if _is_in_usa(lng, lat):
-            raise LocationError(
-                f'"{typed}" looks swapped. Put latitude first, as "lat,lng": '
-                f'"{lng_text},{lat_text}".'
-            )
         raise LocationError(f'"{typed}" is outside the USA.')
 
     return Location(label=f"{lat:.4f},{lng:.4f}", lat=lat, lng=lng)
