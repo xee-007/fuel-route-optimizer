@@ -52,6 +52,9 @@ class FetchRouteTests(SimpleTestCase):
         _, kwargs = post.call_args
         self.assertEqual(kwargs["json"]["coordinates"], [[-87.68, 41.84], [-90.2, 38.63]])
         self.assertIs(kwargs["json"]["instructions"], False)
+        # Start and finish may be a little off-road (a town center in a park):
+        # let the routing service look up to 5 km for the nearest road.
+        self.assertEqual(kwargs["json"]["radiuses"], [5000, 5000])
         self.assertEqual(kwargs["headers"]["Authorization"], "test-key")
         self.assertEqual(kwargs["timeout"], 15)
 

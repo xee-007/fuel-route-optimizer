@@ -79,6 +79,7 @@ def fetch_route(start: Location, finish: Location) -> Route:
             json={
                 "coordinates": [[start.lng, start.lat], [finish.lng, finish.lat]],
                 "instructions": False,  # we only need the line, not turn-by-turn text
+                "radiuses": [settings.ORS_SNAP_RADIUS_METERS] * 2,  # how far to look for a road
             },
             headers={"Authorization": settings.ORS_API_KEY},
             timeout=settings.ORS_TIMEOUT_SECONDS,

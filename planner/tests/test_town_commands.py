@@ -20,6 +20,7 @@ class BuildTownsFileTests(SimpleTestCase):
                 "build_towns_file",
                 places=FIXTURES / "gaz_places.txt",
                 cousubs=FIXTURES / "gaz_cousubs.txt",
+                usgs=FIXTURES / "usgs_places.txt",
                 output=output,
                 stdout=StringIO(),
             )
@@ -61,6 +62,47 @@ class BuildTownsFileTests(SimpleTestCase):
         # must still point at the real city of Uniontown.
         towns = self.build()
         self.assertEqual(towns[("Uniontown", "PA")], ("39.899302", "-79.724529"))
+
+    def test_moves_town_to_usgs_downtown_point_in_same_county(self):
+        # The Census point for San Francisco is in the Pacific; USGS has City Hall.
+        self.assertEqual(self.build()[("San Francisco", "CA")], ("37.775", "-122.4194444"))
+
+    def test_aliases_get_the_corrected_point_too(self):
+        towns = self.build()
+        self.assertEqual(towns[("Honolulu", "HI")], ("21.3069444", "-157.8583333"))
+        self.assertEqual(towns[("Urban Honolulu", "HI")], towns[("Honolulu", "HI")])
+
+    def test_keeps_census_point_when_same_name_is_in_another_county(self):
+        # USGS's "Prosper" is a different place, 400 miles away in another county.
+        self.assertEqual(self.build()[("Prosper", "MN")], ("48.908432", "-94.9348"))
+
+    def test_picks_nearest_usgs_center_when_county_has_two_same_named_places(self):
+        # Coconino County has two "Red Lake"s; the nearer one is this town.
+        self.assertEqual(self.build()[("Red Lake", "AZ")], ("35.3786822", "-112.161532"))
+
+    def test_ignores_usgs_center_too_far_for_the_towns_size(self):
+        # USGS's LeChee is 130 miles away: far more than a 17 sq mi town allows.
+        self.assertEqual(self.build()[("LeChee", "AZ")], ("36.860892", "-111.424438"))
+
+    def test_merged_city_without_usgs_link_uses_the_only_same_named_place(self):
+        # The Census "(balance)" area for Butte has no record in the USGS file,
+        # but Montana has exactly one populated place called Butte.
+        self.assertEqual(self.build()[("Butte", "MT")], ("46.0038153", "-112.5347447"))
+
+    def test_metro_government_names_use_the_core_city_name(self):
+        self.assertIn(("Louisville", "KY"), self.build())
+
+    def test_skips_census_placeholder_rows(self):
+        self.assertNotIn("County subdivisions not defined", {name for name, _ in self.build()})
+
+    def test_adds_usgs_places_missing_from_census_when_name_is_unique(self):
+        self.assertEqual(self.build()[("Breezewood", "PA")], ("39.9992505", "-78.2386229"))
+
+    def test_skips_usgs_places_whose_name_repeats_in_the_state(self):
+        self.assertNotIn(("Midway", "KY"), self.build())
+
+    def test_ignores_historical_places(self):
+        self.assertNotIn("Laros", {name for name, _ in self.build()})
 
     def test_adds_everyday_names_for_known_census_naming_quirks(self):
         towns = self.build()

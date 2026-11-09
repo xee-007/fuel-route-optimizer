@@ -142,6 +142,9 @@ MIN_SAVING_PER_GALLON = Decimal("0.05")
 ORS_API_KEY = os.environ.get("ORS_API_KEY", "")
 ORS_DIRECTIONS_URL = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
 ORS_TIMEOUT_SECONDS = 15
+# How far (meters) the routing API may look for the nearest road to the start
+# and finish, e.g. when a town's center point is in a park.
+ORS_SNAP_RADIUS_METERS = 5000
 
 # Routes are cached so repeat requests (and the map page) never call the API again.
 ROUTE_CACHE_SECONDS = 60 * 60 * 24
