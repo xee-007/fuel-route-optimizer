@@ -45,6 +45,10 @@ class StateCodeTests(SimpleTestCase):
         self.assertEqual(state_code("new york"), "NY")
         self.assertEqual(state_code("District of Columbia"), "DC")
 
+    def test_accepts_codes_written_with_dots(self):
+        self.assertEqual(state_code("D.C."), "DC")
+        self.assertEqual(state_code("N.Y."), "NY")
+
     def test_rejects_non_us_regions(self):
         self.assertIsNone(state_code("ON"))  # Ontario, Canada
         self.assertIsNone(state_code("PR"))  # Puerto Rico is not reachable by road

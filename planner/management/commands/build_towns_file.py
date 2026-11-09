@@ -66,6 +66,7 @@ _MAX_MOVE_IN_TOWN_WIDTHS = 3
 _EVERYDAY_NAMES = {
     ("Urban Honolulu", "HI"): "Honolulu",
     ("Boise City", "ID"): "Boise",
+    ("New York", "NY"): "New York City",
 }
 
 

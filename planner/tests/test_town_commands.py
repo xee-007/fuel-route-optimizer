@@ -110,6 +110,7 @@ class BuildTownsFileTests(SimpleTestCase):
 
     def test_adds_everyday_names_for_known_census_naming_quirks(self):
         towns = self.build()
+        self.assertEqual(towns[("New York City", "NY")], towns[("New York", "NY")])
         self.assertEqual(towns[("Honolulu", "HI")], towns[("Urban Honolulu", "HI")])
         self.assertEqual(towns[("Boise", "ID")], towns[("Boise City", "ID")])
 
