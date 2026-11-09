@@ -1,5 +1,4 @@
 import json
-from decimal import Decimal
 from unittest import mock
 
 from django.core.cache import cache
@@ -87,4 +86,5 @@ class RoutePlanMapPageTests(TestCase):
         response = self.client.get(MAP_URL, TRIP)
 
         self.assertNotContains(response, "</script><b>")
-        self.assertEqual(Decimal("3.50"), FuelStation.objects.get(opis_id=1).price_per_gallon)
+        # Still shown, but as text: the panel escapes it like any other name.
+        self.assertContains(response, "&lt;/script&gt;&lt;b&gt;Bad &amp; Co&lt;/b&gt;")

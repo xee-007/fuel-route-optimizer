@@ -12,7 +12,7 @@ returns the route, where to stop and how much fuel to buy at each stop, the tota
 
 - **One routing API call per new trip**, none for a trip planned before (cached).
 - **Fast:** about 1–1.5 s for a new cross-country trip (almost all of it the routing call), 10–60 ms when cached.
-- **Cost-effective:** a greedy fuel-stop algorithm that a test proves optimal against brute force.
+- **Cost-effective:** the fuel-stop algorithm finds the cheapest plan (a test checks it against brute force). By default it skips stops that would save under 5¢/gal, which keeps plans within a few dollars of the cheapest with fewer stops.
 
 ## Contents
 
@@ -53,7 +53,7 @@ Then open <http://127.0.0.1:8000/api/v1/route-plan/?start=Chicago,%20IL&finish=D
 
 | Query parameter | Example | Notes |
 |---|---|---|
-| `start` | `Chicago, IL` | A US town as `City, ST` (or a full state name: `chicago, illinois`), or coordinates as `lat,lng` |
+| `start` | `Chicago, IL` | A US town as `City, ST` (`Washington, D.C.` and full state names like `chicago, illinois` work too), or coordinates as `lat,lng` |
 | `finish` | `Denver, CO` | Same formats |
 
 Response (Chicago → Denver; route coordinates and stops shortened):
@@ -69,7 +69,8 @@ Response (Chicago → Denver; route coordinates and stops shortened):
     "tank_range_miles": 500,
     "total_gallons": 100.33,
     "total_cost_usd": 292.12,
-    "starts_with_full_tank": false
+    "starts_with_full_tank": false,
+    "starting_fuel": null
   },
   "fuel_stops": [
     {
@@ -94,7 +95,7 @@ Response (Chicago → Denver; route coordinates and stops shortened):
       "city": "Tipton",
       "state": "IA",
       "route_mile": 203.0,
-      "price_per_gallon": 2.982,
+      "price_per_gallon": 2.98233333,
       "gallons": 26.2,
       "cost_usd": 78.14,
       "...": "..."
@@ -107,7 +108,9 @@ Response (Chicago → Denver; route coordinates and stops shortened):
 
 - `fuel_stops` are in driving order; `route_mile` is how far along the route each stop is.
 - `route` is GeoJSON (`[lng, lat]` pairs), thinned to at most 1,000 points to keep responses small (~20 KB).
-- `total_cost_usd` is the sum of the stops' `cost_usd`.
+- `price_per_gallon` is the exact price from the price list (up to 8 decimals), so `gallons × price_per_gallon` rounds to `cost_usd`.
+- `starting_fuel` is `null` unless the trip starts on a full tank (see [Assumptions](#assumptions)). Then it holds the gallons used from that tank and their cost, charged at the first station along the route (`priced_at`).
+- `total_cost_usd` is the sum of the stops' `cost_usd` plus `starting_fuel.cost_usd`.
 
 ### `GET /api/v1/route-plan/map/`
 
@@ -128,7 +131,9 @@ Every error has the same shape:
 | 405 | `method_not_allowed` | Anything but `GET` |
 | 422 | `no_route` | The routing service found no drivable route |
 | 422 | `no_fuel_plan` | A stretch longer than 500 miles has no known fuel station; the message says between which miles |
-| 502 / 503 / 504 | `routing_failed` / `routing_unavailable` / `routing_timeout` | The routing service failed, is rate-limited or unconfigured, or timed out |
+| 502 | `routing_failed` | The routing service failed; trying again may help |
+| 503 | `routing_unavailable` | Routing is unavailable: rate limit, used-up daily quota, rejected or missing API key |
+| 504 | `routing_timeout` | The routing service took too long to respond |
 
 ## How it works
 
@@ -139,18 +144,19 @@ Every error has the same shape:
 1. **Resolve start and finish** from the local town table (`"Chicago, IL"` → coordinates). Bad input is rejected here, before any API call.
 2. **Get the route** from OpenRouteService: **one call**, cached for 24 hours.
 3. **Find stations along the route** ([`station_search.py`](planner/services/station_search.py)): resample the route to one point per mile, query the stations inside its bounding box, and measure each one's distance to the route with a KD-tree. Keep those within 10 miles, with their mile marker, and only the cheapest in each 25-mile stretch.
-4. **Choose fuel stops** ([`fuel_planner.py`](planner/services/fuel_planner.py)). The tank starts empty and is filled at the cheapest station near the start. Then, at each station:
+4. **Choose fuel stops** ([`fuel_planner.py`](planner/services/fuel_planner.py)). The tank starts empty and is filled at the cheapest station near the start (or, with no station nearby, starts full; see [Assumptions](#assumptions)). Then, at each station:
    1. If a **cheaper** station is within range, buy just enough fuel to reach it.
    2. Otherwise, if the finish is within range, buy just enough to finish.
    3. Otherwise, fill the tank and drive to the cheapest station within range.
 
-   This is the cheapest possible plan: fuel is never carried past a cheaper station, and when everything in reach is pricier, filling up buys as much cheap fuel as the tank holds. A test compares it with a brute-force search on 200 random routes.
+   This is the cheapest possible plan: fuel is never carried past a cheaper station, and when everything in reach is pricier, filling up buys as much cheap fuel as the tank holds. Tests compare it with a brute-force search on hundreds of random routes, starting both empty and full.
 
    Saving a cent or two isn't worth an extra stop, so a station must be at least **5¢/gal cheaper** (`MIN_SAVING_PER_GALLON`) to count as cheaper. On New York → Los Angeles this gives 8 stops for $834 instead of 11 stops for $832. Set it to `0` for the strictly cheapest plan.
 
 ## Assumptions
 
-- The tank **starts empty** and is filled at the cheapest station within 25 miles of the start, so every gallon of the trip is paid for and the total is the real trip cost. If no station is that close, the trip starts with a full tank (`starts_with_full_tank: true`).
+- The tank **starts empty** and is filled at the cheapest station within 25 miles of the start, so every gallon of the trip is paid for and the total is the real trip cost.
+- If no station is that close (the price list has none near Houston or Los Angeles, for example), the trip starts with a **full tank** (`starts_with_full_tank: true`). The fuel used from it is still paid for: it's charged at the price of the first station along the route and shown as `starting_fuel`. This doesn't change which stops are chosen, because a full starting tank is always used up to the trip length or 500 miles.
 - The vehicle arrives at the finish with an empty tank.
 - A station is "on the way" if it's within 10 miles of the route. The short detour to reach it isn't added to the fuel needed.
 - Stations are placed at the center of their town (the price list has no coordinates), which is accurate to a few miles.
@@ -165,7 +171,7 @@ Every error has the same shape:
 | Start/finish as `City, ST` or `lat,lng` | Resolved locally, so no geocoding API call | Street addresses aren't supported |
 | OpenRouteService for routing | Free, reliable, returns the full route geometry in one call | Needs a free API key with a daily request quota; caching keeps repeat trips from using it |
 | Cache routes (Django cache, 24 h) | Repeat trips and the map page cost no API call | Local-memory cache per process; point `CACHES` at Redis to share it |
-| Greedy fuel planner, plain Python | Optimal, easy to read, fully unit-tested without Django | — |
+| Greedy fuel planner, plain Python | Exactly cheapest at a 0¢ margin, easy to read, fully unit-tested without Django | The default 5¢ margin trades a few dollars for fewer stops |
 | KD-tree to find stations near the route | ~20,000 route points × thousands of stations in milliseconds | Adds SciPy |
 | SQLite, no PostGIS | Clone and run with no database setup | Spatial queries are done in Python (fast enough at this size) |
 | Thin views, logic in `planner/services/` | Each module has one job and its own tests | — |
@@ -188,14 +194,14 @@ Most of a first request is the routing call; everything else (station search and
 
 ```bash
 pip install -r requirements-dev.txt
-python manage.py test   # 130 tests, under a second; the routing API is mocked
+python manage.py test   # 142 tests, under a second; the routing API is mocked
 ruff check .            # lint
 ruff format --check .   # formatting
 ```
 
 Highlights:
 
-- **The fuel planner matches a brute-force search** on 200 random routes. Breaking any of its three rules makes that test fail.
+- **The fuel planner matches a brute-force search** on 400 random routes (starting empty and full). Breaking any of its three rules makes that test fail.
 - **API tests check that a new trip makes exactly one routing call, and a repeat makes none.**
 - Data tests use real rows from the Census and USGS files (San Francisco, Honolulu, same-named towns in one county, and more).
 

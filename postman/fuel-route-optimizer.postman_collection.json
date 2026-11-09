@@ -106,6 +106,36 @@
           }
         },
         {
+          "name": "Houston → Dallas (no station near the start)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "The price list has no station near Houston, so the trip starts on a full tank; that fuel is charged at the first station along the route (see starting_fuel).",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=Houston, TX&finish=Dallas, TX",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Houston, TX"
+                },
+                {
+                  "key": "finish",
+                  "value": "Dallas, TX"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Coordinates instead of town names",
           "request": {
             "method": "GET",
@@ -142,15 +172,16 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"returns a fuel plan\", () => {",
+              "pm.test(\"returns a fuel plan with a cost\", () => {",
               "    pm.response.to.have.status(200);",
-              "    pm.expect(pm.response.json().fuel_stops).to.be.an(\"array\").that.is.not.empty;",
+              "    pm.expect(pm.response.json().fuel_summary.total_cost_usd).to.be.above(0);",
               "});",
               "",
-              "pm.test(\"total cost equals the sum of the stops\", () => {",
+              "pm.test(\"total cost = fuel stops + starting fuel\", () => {",
               "    const plan = pm.response.json();",
-              "    const sum = plan.fuel_stops.reduce((total, stop) => total + stop.cost_usd, 0);",
-              "    pm.expect(plan.fuel_summary.total_cost_usd).to.be.closeTo(sum, 0.001);",
+              "    const stops = plan.fuel_stops.reduce((total, stop) => total + stop.cost_usd, 0);",
+              "    const start = plan.fuel_summary.starting_fuel ? plan.fuel_summary.starting_fuel.cost_usd : 0;",
+              "    pm.expect(plan.fuel_summary.total_cost_usd).to.be.closeTo(stops + start, 0.001);",
               "});",
               "",
               "pm.test(\"responds within 3 seconds\", () => {",
@@ -175,6 +206,15 @@
               "</div>",
               "<table>",
               "  <tr><th>#</th><th>Station</th><th>Where</th><th>Mile</th><th>Price</th><th>Gallons</th><th>Cost</th></tr>",
+              "  {{#if plan.fuel_summary.starting_fuel}}",
+              "  <tr>",
+              "    <td>S</td><td>Starting tank (no station near the start)</td>",
+              "    <td>priced at {{plan.fuel_summary.starting_fuel.priced_at.name}}</td><td></td>",
+              "    <td class=\"num\">\\${{plan.fuel_summary.starting_fuel.price_per_gallon}}</td>",
+              "    <td class=\"num\">{{plan.fuel_summary.starting_fuel.gallons}}</td>",
+              "    <td class=\"num\">\\${{plan.fuel_summary.starting_fuel.cost_usd}}</td>",
+              "  </tr>",
+              "  {{/if}}",
               "  {{#each plan.fuel_stops}}",
               "  <tr>",
               "    <td>{{stop_number}}</td><td>{{name}}</td><td>{{city}}, {{state}}</td>",
