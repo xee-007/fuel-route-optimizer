@@ -44,7 +44,20 @@ python manage.py load_fuel_stations   # fuel stations + prices, placed at their 
 python manage.py runserver
 ```
 
-Then open <http://127.0.0.1:8000/api/v1/route-plan/?start=Chicago,%20IL&finish=Denver,%20CO>, or the map at <http://127.0.0.1:8000/api/v1/route-plan/map/?start=Chicago,%20IL&finish=Denver,%20CO>.
+The data commands print a short summary, and the server says where it's listening:
+
+```
+Loaded 165843 towns.
+Loaded 6593 stations. Skipped 33 with an unknown town. Ignored 620 outside the US.
+...
+Starting development server at http://127.0.0.1:8000/
+```
+
+Then open <http://127.0.0.1:8000/api/v1/route-plan/?start=Chicago,%20IL&finish=Denver,%20CO> to get the plan as JSON:
+
+<img src="docs/api-response-chicago-to-denver.jpg" alt="The JSON response for Chicago to Denver in a browser" width="480">
+
+or the same trip on a map: <http://127.0.0.1:8000/api/v1/route-plan/map/?start=Chicago,%20IL&finish=Denver,%20CO>.
 
 **Postman:** see [Postman](#postman) for ready-made requests with tests.
 
@@ -178,6 +191,8 @@ The server address is the collection variable `base_url` (default `http://127.0.
 ## Assumptions
 
 - The trip starts with **just enough fuel to reach the first station along the route**, and that's the first stop. The fuel used to get there is charged at that station's price (`starting_fuel`), so every gallon of the trip is paid for and the total is the real trip cost. For example, the price list has no station in Houston, so Houston → Dallas first stops in Huntsville, 69 miles in. Because you arrive at the first station nearly empty, the first stop can be small: in Chicago, 1.6 gallons to reach a station 34¢ cheaper 16 miles on.
+
+  ![Houston to Dallas: fuel to reach the first station, then one stop in Huntsville](docs/map-houston-to-dallas.jpg)
 - The vehicle arrives at the finish with an empty tank.
 - A station is "on the way" if it's within 10 miles of the route. The short detour to reach it isn't added to the fuel needed.
 - Stations are placed at the center of their town (the price list has no coordinates), which is accurate to a few miles.
