@@ -18,6 +18,7 @@ returns the route, where to stop and how much fuel to buy at each stop, the tota
 
 - [Quick start](#quick-start)
 - [API](#api)
+- [Postman](#postman)
 - [How it works](#how-it-works)
 - [Assumptions](#assumptions)
 - [Design decisions](#design-decisions)
@@ -43,9 +44,22 @@ python manage.py load_fuel_stations   # fuel stations + prices, placed at their 
 python manage.py runserver
 ```
 
-Then open <http://127.0.0.1:8000/api/v1/route-plan/?start=Chicago,%20IL&finish=Denver,%20CO>, or the map at <http://127.0.0.1:8000/api/v1/route-plan/map/?start=Chicago,%20IL&finish=Denver,%20CO>.
+The data commands print a short summary, and the server says where it's listening:
 
-**Postman:** import [`postman/fuel-route-optimizer.postman_collection.json`](postman/fuel-route-optimizer.postman_collection.json). It has example trips and error cases with tests; successful trips show a summary table in the **Visualize** tab.
+```
+Loaded 165843 towns.
+Loaded 6593 stations. Skipped 33 with an unknown town. Ignored 620 outside the US.
+...
+Starting development server at http://127.0.0.1:8000/
+```
+
+Then open <http://127.0.0.1:8000/api/v1/route-plan/?start=Chicago,%20IL&finish=Denver,%20CO> to get the plan as JSON:
+
+<img src="docs/api-response-chicago-to-denver.jpg" alt="The JSON response for Chicago to Denver in a browser" width="480">
+
+or the same trip on a map: <http://127.0.0.1:8000/api/v1/route-plan/map/?start=Chicago,%20IL&finish=Denver,%20CO>.
+
+**Postman:** see [Postman](#postman) for ready-made requests with tests.
 
 ## API
 
@@ -134,6 +148,28 @@ Every error has the same shape:
 | 503 | `routing_unavailable` | Routing is unavailable: rate limit, used-up daily quota, rejected or missing API key |
 | 504 | `routing_timeout` | The routing service took too long to respond |
 
+## Postman
+
+[`postman/fuel-route-optimizer.postman_collection.json`](postman/fuel-route-optimizer.postman_collection.json) has ready-made requests, each with tests:
+
+| Folder | Requests |
+|---|---|
+| Plan a trip | New York → Los Angeles, Chicago → Denver, Dallas → Houston, Houston → Dallas (no station in Houston), coordinates instead of town names |
+| Errors | Missing finish, unknown town, coordinates outside the USA, swapped latitude/longitude, no fuel station for 500+ miles |
+
+To use it:
+
+1. Start the server: `python manage.py runserver`.
+2. In Postman, click **Import** and choose the collection file.
+3. Send requests through Postman's **Desktop Agent** (the agent picker is at the bottom right of the Postman window). The Cloud Agent runs on Postman's servers, so it can't reach `127.0.0.1` and fails with "Cannot send requests to reserved address".
+4. Open a request and click **Send**. Then look at:
+   - the response body's **Visualize** view: a summary and a table of the fuel stops;
+   - **Test Results**: the checks for that request (status, total cost = fuel stops + starting fuel, response time);
+   - `map_url` in the response: open it in a browser to see the route and stops on a map.
+5. To run every request and its tests at once, use **Run collection** on the collection.
+
+The server address is the collection variable `base_url` (default `http://127.0.0.1:8000`); change it if your server runs elsewhere. Each new trip makes one routing API call; sending it again is served from the cache.
+
 ## How it works
 
 **Once, at setup:** the fuel price list has addresses like `I-44, EXIT 283 & US-69` but no coordinates. `load_towns` and `load_fuel_stations` place each station at the center of its town using public-domain US Census and USGS data (see [Data](#data)). Doing this ahead of time is what keeps requests fast and free of geocoding calls.
@@ -155,6 +191,8 @@ Every error has the same shape:
 ## Assumptions
 
 - The trip starts with **just enough fuel to reach the first station along the route**, and that's the first stop. The fuel used to get there is charged at that station's price (`starting_fuel`), so every gallon of the trip is paid for and the total is the real trip cost. For example, the price list has no station in Houston, so Houston → Dallas first stops in Huntsville, 69 miles in. Because you arrive at the first station nearly empty, the first stop can be small: in Chicago, 1.6 gallons to reach a station 34¢ cheaper 16 miles on.
+
+  ![Houston to Dallas: fuel to reach the first station, then one stop in Huntsville](docs/map-houston-to-dallas.jpg)
 - The vehicle arrives at the finish with an empty tank.
 - A station is "on the way" if it's within 10 miles of the route. The short detour to reach it isn't added to the fuel needed.
 - Stations are placed at the center of their town (the price list has no coordinates), which is accurate to a few miles.
