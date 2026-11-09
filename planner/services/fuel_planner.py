@@ -140,16 +140,27 @@ def plan_fuel_stops(
             )
             miles_to_buy = tank_range_miles - fuel_left
         else:
-            raise FuelPlanError(
-                f"The route has a stretch of more than {tank_range_miles:g} miles with no "
-                f"known fuel station (after mile {here.route_mile:.0f})."
-            )
+            raise FuelPlanError(_gap_message(route, i, trip_miles, tank_range_miles))
 
         purchases.append((here, miles_to_buy))
         fuel_left += miles_to_buy - (route[next_i].route_mile - here.route_mile)
         i = next_i
 
     return _build_plan(purchases, mpg, starts_with_full_tank)
+
+
+def _gap_message(
+    route: list[StationCandidate], i: int, trip_miles: float, tank_range_miles: float
+) -> str:
+    here = route[i].route_mile
+    if i + 1 < len(route):
+        gap_end = f"mile {route[i + 1].route_mile:.0f}"
+    else:
+        gap_end = f"the finish (mile {trip_miles:.0f})"
+    return (
+        f"No fuel station from the price list between mile {here:.0f} and {gap_end} "
+        f"of the route, and a full tank only lasts {tank_range_miles:g} miles."
+    )
 
 
 def _build_plan(

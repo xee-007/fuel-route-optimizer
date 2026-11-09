@@ -120,6 +120,17 @@ class EmptyTankStartTests(SimpleTestCase):
         with self.assertRaisesMessage(FuelPlanError, "500 miles"):
             plan([station("A", 0, "3.00"), station("B", 600, "3.00")], trip_miles=700)
 
+    def test_gap_message_names_both_ends_of_the_gap(self):
+        with self.assertRaisesMessage(FuelPlanError, "between mile 120 and mile 750"):
+            plan(
+                [station("A", 0, "3.00"), station("B", 120, "3.00"), station("C", 750, "3.00")],
+                trip_miles=900,
+            )
+
+    def test_gap_up_to_the_finish_is_named_too(self):
+        with self.assertRaisesMessage(FuelPlanError, "between mile 0 and the finish (mile 700)"):
+            plan([station("A", 0, "3.00")], trip_miles=700)
+
     def test_missing_station_at_start_raises(self):
         with self.assertRaises(FuelPlanError):
             plan([station("B", 5, "3.00")], trip_miles=100)
