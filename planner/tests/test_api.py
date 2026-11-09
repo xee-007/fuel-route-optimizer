@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from unittest import mock
 
 import requests
@@ -108,6 +108,19 @@ class RoutePlanApiTests(TestCase):
 
         stop_costs = sum(Decimal(str(stop["cost_usd"])) for stop in data["fuel_stops"])
         self.assertEqual(Decimal(str(data["fuel_summary"]["total_cost_usd"])), stop_costs)
+
+    def test_prices_are_exact_so_each_stop_adds_up(self):
+        # Prices in the list often have 8 decimals; rounding them in the response
+        # would make gallons x price differ from the cost by a cent.
+        FuelStation.objects.filter(opis_id=4).update(price_per_gallon=Decimal("2.89733333"))
+
+        stops = self.get_plan().json()["fuel_stops"]
+
+        self.assertIn(2.89733333, [stop["price_per_gallon"] for stop in stops])
+        for stop in stops:
+            gallons, price = Decimal(str(stop["gallons"])), Decimal(str(stop["price_per_gallon"]))
+            expected = (gallons * price).quantize(Decimal("0.01"), ROUND_HALF_UP)
+            self.assertEqual(Decimal(str(stop["cost_usd"])), expected, stop["name"])
 
     def test_total_includes_starting_fuel_when_trip_starts_full(self):
         FuelStation.objects.filter(opis_id=1).delete()

@@ -18,7 +18,8 @@ class RoutePlanQuerySerializer(serializers.Serializer):
 
 class RoundedNumberField(serializers.DecimalField):
     """A decimal rounded to `decimal_places` and output as a plain number (30.25),
-    so the JSON API and the map page's JavaScript both get numbers, not strings."""
+    so the JSON API and the map page's JavaScript both get numbers, not strings.
+    Prices keep all 8 decimals of the price list, so gallons x price = cost."""
 
     def __init__(self, decimal_places: int, **kwargs):
         super().__init__(
@@ -44,7 +45,7 @@ class FuelStopSerializer(serializers.Serializer):
     lat = serializers.FloatField(source="station.lat")
     lng = serializers.FloatField(source="station.lng")
     route_mile = serializers.SerializerMethodField()
-    price_per_gallon = RoundedNumberField(source="station.price_per_gallon", decimal_places=3)
+    price_per_gallon = RoundedNumberField(source="station.price_per_gallon", decimal_places=8)
     gallons = RoundedNumberField(decimal_places=2)
     cost_usd = RoundedNumberField(source="cost", decimal_places=2)
 
@@ -67,7 +68,7 @@ class StartingFuelSerializer(serializers.Serializer):
     """Fuel used from a full starting tank, charged at the first station along the route."""
 
     gallons = RoundedNumberField(decimal_places=2)
-    price_per_gallon = RoundedNumberField(source="station.price_per_gallon", decimal_places=3)
+    price_per_gallon = RoundedNumberField(source="station.price_per_gallon", decimal_places=8)
     cost_usd = RoundedNumberField(source="cost", decimal_places=2)
     priced_at = StationRefSerializer(source="station")
 
