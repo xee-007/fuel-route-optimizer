@@ -1,0 +1,432 @@
+{
+  "info": {
+    "name": "Fuel Route Optimizer",
+    "description": "Plan a US road trip with the cheapest fuel stops.\n\nSet `base_url` (collection variables) to where the server runs, then send any request. Successful trips show a summary table in the **Visualize** tab; open `map_url` in a browser to see the route on a map.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Plan a trip",
+      "description": "Trips that return a fuel plan.",
+      "item": [
+        {
+          "name": "New York → Los Angeles (coast to coast)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "~2,800 miles, several fuel stops.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=New York, NY&finish=Los Angeles, CA",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "New York, NY"
+                },
+                {
+                  "key": "finish",
+                  "value": "Los Angeles, CA"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Chicago → Denver",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "~1,000 miles.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=Chicago, IL&finish=Denver, CO",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Chicago, IL"
+                },
+                {
+                  "key": "finish",
+                  "value": "Denver, CO"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Dallas → Houston (short trip)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Under one tank: a single fill-up at the start.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=Dallas, TX&finish=Houston, TX",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Dallas, TX"
+                },
+                {
+                  "key": "finish",
+                  "value": "Houston, TX"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Coordinates instead of town names",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Start and finish as lat,lng.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=41.8781,-87.6298&finish=39.7392,-104.9903",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "41.8781,-87.6298"
+                },
+                {
+                  "key": "finish",
+                  "value": "39.7392,-104.9903"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"returns a fuel plan\", () => {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().fuel_stops).to.be.an(\"array\").that.is.not.empty;",
+              "});",
+              "",
+              "pm.test(\"total cost equals the sum of the stops\", () => {",
+              "    const plan = pm.response.json();",
+              "    const sum = plan.fuel_stops.reduce((total, stop) => total + stop.cost_usd, 0);",
+              "    pm.expect(plan.fuel_summary.total_cost_usd).to.be.closeTo(sum, 0.001);",
+              "});",
+              "",
+              "pm.test(\"responds within 3 seconds\", () => {",
+              "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+              "});",
+              "",
+              "const template = `",
+              "<style>",
+              "  body { font: 14px/1.4 system-ui, sans-serif; color: #1d2733; }",
+              "  h2 { margin: 0 0 4px; font-size: 18px; }",
+              "  .summary { color: #5d6b7a; margin-bottom: 12px; }",
+              "  .summary b { color: #1f6feb; font-size: 16px; }",
+              "  table { border-collapse: collapse; width: 100%; }",
+              "  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3e8ee; }",
+              "  th { color: #5d6b7a; font-weight: 600; }",
+              "  td.num { text-align: right; font-variant-numeric: tabular-nums; }",
+              "</style>",
+              "<h2>{{plan.start.label}} → {{plan.finish.label}}</h2>",
+              "<div class=\"summary\">",
+              "  {{plan.distance_miles}} mi · {{plan.duration_hours}} h · {{plan.fuel_summary.total_gallons}} gal ·",
+              "  total <b>\\${{plan.fuel_summary.total_cost_usd}}</b>",
+              "</div>",
+              "<table>",
+              "  <tr><th>#</th><th>Station</th><th>Where</th><th>Mile</th><th>Price</th><th>Gallons</th><th>Cost</th></tr>",
+              "  {{#each plan.fuel_stops}}",
+              "  <tr>",
+              "    <td>{{stop_number}}</td><td>{{name}}</td><td>{{city}}, {{state}}</td>",
+              "    <td class=\"num\">{{route_mile}}</td><td class=\"num\">\\${{price_per_gallon}}</td>",
+              "    <td class=\"num\">{{gallons}}</td><td class=\"num\">\\${{cost_usd}}</td>",
+              "  </tr>",
+              "  {{/each}}",
+              "</table>",
+              "<p>Open the map: <a href=\"{{plan.map_url}}\" target=\"_blank\">{{plan.map_url}}</a></p>",
+              "`;",
+              "pm.visualizer.set(template, { plan: pm.response.json() });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Errors",
+      "description": "Every error has the same shape: {\"error\": {\"code\", \"message\"}}.",
+      "item": [
+        {
+          "name": "Missing finish",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=Chicago, IL",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Chicago, IL"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 invalid_request\", () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"invalid_request\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown town",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=Atlantis, IL&finish=Denver, CO",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "Atlantis, IL"
+                },
+                {
+                  "key": "finish",
+                  "value": "Denver, CO"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 invalid_location\", () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"invalid_location\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Coordinates outside the USA",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "London.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=51.5074,-0.1278&finish=Denver, CO",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "51.5074,-0.1278"
+                },
+                {
+                  "key": "finish",
+                  "value": "Denver, CO"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 invalid_location\", () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"invalid_location\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Latitude and longitude swapped",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "The error suggests the corrected order.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=-87.6298,41.8781&finish=Denver, CO",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "-87.6298,41.8781"
+                },
+                {
+                  "key": "finish",
+                  "value": "Denver, CO"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 invalid_location\", () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"invalid_location\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No fuel station for 500+ miles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "The price list has no stations on most of this route.",
+            "url": {
+              "raw": "{{base_url}}/api/v1/route-plan/?start=San Francisco, CA&finish=Las Vegas, NV",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "route-plan",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "San Francisco, CA"
+                },
+                {
+                  "key": "finish",
+                  "value": "Las Vegas, NV"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422 no_fuel_plan\", () => {",
+                  "    pm.response.to.have.status(422);",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"no_fuel_plan\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"error has a code and a message\", () => {",
+              "    const error = pm.response.json().error;",
+              "    pm.expect(error.code).to.be.a(\"string\");",
+              "    pm.expect(error.message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
