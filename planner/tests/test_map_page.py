@@ -55,6 +55,14 @@ class RoutePlanMapPageTests(TestCase):
 
         self.assertEqual(response["Referrer-Policy"], "strict-origin-when-cross-origin")
 
+    def test_shows_the_starting_fuel_charge_when_trip_starts_full(self):
+        FuelStation.objects.filter(opis_id=1).delete()  # no station near the start
+
+        response = self.client.get(MAP_URL, TRIP)
+
+        self.assertContains(response, "Starting tank")
+        self.assertContains(response, "Station 4")  # the first station along the route
+
     def test_reuses_the_cached_route_from_the_api_call(self):
         self.client.get(reverse("route-plan"), TRIP)
         self.client.get(MAP_URL, TRIP)

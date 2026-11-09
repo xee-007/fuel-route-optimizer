@@ -25,6 +25,7 @@
     .badge, .stop-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
                          background: var(--accent); color: #fff; font-weight: 700; font-size: 12px; }
     .stop-icon { border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+    .badge.start { background: var(--start); }
     .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
     .error { max-width: 460px; margin: 15vh auto; padding: 24px; border: 1px solid var(--line); border-radius: 10px; }
     .error h1 { color: var(--finish); }
@@ -49,6 +50,15 @@
       <div class="stat total"><span>Total fuel cost</span><strong>${{ plan.fuel_summary.total_cost_usd|floatformat:2 }}</strong></div>
     </div>
     <ol>
+      {% with start=plan.fuel_summary.starting_fuel %}
+        {% if start %}
+          <li>
+            <span class="badge start">S</span>
+            <div>Starting tank<small>No station near the start; charged at {{ start.priced_at.name }}, {{ start.priced_at.city }}, {{ start.priced_at.state }}</small></div>
+            <div>${{ start.cost_usd|floatformat:2 }}<small>{{ start.gallons|floatformat:1 }} gal @ ${{ start.price_per_gallon|floatformat:3 }}</small></div>
+          </li>
+        {% endif %}
+      {% endwith %}
       {% for stop in plan.fuel_stops %}
         <li>
           <span class="badge">{{ stop.stop_number }}</span>
@@ -59,8 +69,8 @@
         <li><span></span><div>No fuel stops needed.</div><span></span></li>
       {% endfor %}
     </ol>
-    {% if plan.fuel_summary.starts_with_full_tank %}
-      <p class="note">No station near the start, so the trip starts with a full tank.</p>
+    {% if plan.fuel_summary.starts_with_full_tank and not plan.fuel_summary.starting_fuel %}
+      <p class="note">The trip starts with a full tank; there's no station on this route to price it.</p>
     {% endif %}
     <p class="note">{{ plan.fuel_summary.miles_per_gallon }} mpg · {{ plan.fuel_summary.tank_range_miles }}-mile tank</p>
   </aside>

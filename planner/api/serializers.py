@@ -52,6 +52,26 @@ class FuelStopSerializer(serializers.Serializer):
         return round(stop.station.route_mile, 1)
 
 
+class StationRefSerializer(serializers.Serializer):
+    station_id = serializers.IntegerField()
+    name = serializers.CharField()
+    city = serializers.CharField()
+    state = serializers.CharField()
+    route_mile = serializers.SerializerMethodField()
+
+    def get_route_mile(self, station) -> float:
+        return round(station.route_mile, 1)
+
+
+class StartingFuelSerializer(serializers.Serializer):
+    """Fuel used from a full starting tank, charged at the first station along the route."""
+
+    gallons = RoundedNumberField(decimal_places=2)
+    price_per_gallon = RoundedNumberField(source="station.price_per_gallon", decimal_places=3)
+    cost_usd = RoundedNumberField(source="cost", decimal_places=2)
+    priced_at = StationRefSerializer(source="station")
+
+
 class TripPlanSerializer(serializers.Serializer):
     start = LocationSerializer()
     finish = LocationSerializer()
@@ -75,6 +95,11 @@ class TripPlanSerializer(serializers.Serializer):
             "total_gallons": float(plan.fuel_plan.total_gallons),
             "total_cost_usd": float(plan.fuel_plan.total_cost),
             "starts_with_full_tank": plan.fuel_plan.starts_with_full_tank,
+            "starting_fuel": (
+                StartingFuelSerializer(plan.fuel_plan.starting_fuel).data
+                if plan.fuel_plan.starting_fuel
+                else None
+            ),
         }
 
     def get_fuel_stops(self, plan) -> list[dict]:

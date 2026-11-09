@@ -101,12 +101,23 @@ class RoutePlanApiTests(TestCase):
         self.assertEqual(summary["tank_range_miles"], 500)
         self.assertAlmostEqual(summary["total_gallons"], ROUTE_MILES / 10, delta=0.05)
         self.assertIs(summary["starts_with_full_tank"], False)
+        self.assertIsNone(summary["starting_fuel"])
 
     def test_total_cost_equals_sum_of_stop_costs(self):
         data = self.get_plan().json()
 
         stop_costs = sum(Decimal(str(stop["cost_usd"])) for stop in data["fuel_stops"])
         self.assertEqual(Decimal(str(data["fuel_summary"]["total_cost_usd"])), stop_costs)
+
+    def test_total_includes_starting_fuel_when_trip_starts_full(self):
+        FuelStation.objects.filter(opis_id=1).delete()
+
+        summary = self.get_plan().json()["fuel_summary"]
+
+        stops = sum(Decimal(str(s["cost_usd"])) for s in self.get_plan().json()["fuel_stops"])
+        starting = Decimal(str(summary["starting_fuel"]["cost_usd"]))
+        self.assertEqual(Decimal(str(summary["total_cost_usd"])), stops + starting)
+        self.assertAlmostEqual(summary["total_gallons"], ROUTE_MILES / 10, delta=0.05)
 
     def test_route_is_geojson_in_lng_lat_order(self):
         route = self.get_plan().json()["route"]
@@ -135,6 +146,23 @@ class RoutePlanApiTests(TestCase):
 
         self.assertIs(data["fuel_summary"]["starts_with_full_tank"], True)
         self.assertNotEqual(data["fuel_stops"][0]["route_mile"], 0.0)
+        # 500 miles from the starting tank, charged at the first station along
+        # the route (station 2, $3.20/gal).
+        self.assertEqual(
+            data["fuel_summary"]["starting_fuel"],
+            {
+                "gallons": 50.0,
+                "price_per_gallon": 3.2,
+                "cost_usd": 160.0,
+                "priced_at": {
+                    "station_id": 2,
+                    "name": "Station 2",
+                    "city": "Town",
+                    "state": "KS",
+                    "route_mile": data["fuel_summary"]["starting_fuel"]["priced_at"]["route_mile"],
+                },
+            },
+        )
 
     def assert_error(self, response, status: int, code: str) -> str:
         self.assertEqual(response.status_code, status)

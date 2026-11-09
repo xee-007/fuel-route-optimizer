@@ -51,8 +51,19 @@ class FuelStop:
 
 
 @dataclass(frozen=True)
+class StartingFuel:
+    """Fuel used from a tank that was full at the start, charged at the price
+    of `station`: the first station along the route."""
+
+    station: StationCandidate
+    gallons: Decimal
+    cost: Decimal
+
+
+@dataclass(frozen=True)
 class FuelPlan:
     stops: list[FuelStop]
+    starting_fuel: StartingFuel | None  # only when the trip starts on a full tank
     total_gallons: Decimal
     total_cost: Decimal
     starts_with_full_tank: bool
@@ -87,9 +98,10 @@ def plan_fuel_stops(
     """Return the cheapest set of fuel stops for the trip.
 
     With an empty tank, there must be a station at mile 0 to fill up before leaving.
+    With a full tank, the fuel used from it is charged at the first station's price.
     """
     if trip_miles <= 0:
-        return _build_plan([], mpg, starts_with_full_tank)
+        return _build_plan([], trip_miles, mpg, starts_with_full_tank, first_station=None)
 
     # Only stations before the finish matter. Cheaper first when two share a mile marker.
     route = sorted(
@@ -146,7 +158,8 @@ def plan_fuel_stops(
         fuel_left += miles_to_buy - (route[next_i].route_mile - here.route_mile)
         i = next_i
 
-    return _build_plan(purchases, mpg, starts_with_full_tank)
+    first_station = route[1] if starts_with_full_tank and len(route) > 1 else None
+    return _build_plan(purchases, trip_miles, mpg, starts_with_full_tank, first_station)
 
 
 def _gap_message(
@@ -164,20 +177,44 @@ def _gap_message(
 
 
 def _build_plan(
-    purchases: list[tuple[StationCandidate, float]], mpg: float, starts_with_full_tank: bool
+    purchases: list[tuple[StationCandidate, float]],
+    trip_miles: float,
+    mpg: float,
+    starts_with_full_tank: bool,
+    first_station: StationCandidate | None,
 ) -> FuelPlan:
     stops = []
+    bought_miles = 0.0
     for station, miles in purchases:
-        gallons = Decimal(miles / mpg).quantize(CENT, ROUND_HALF_UP)
-        # The starting tank isn't a real stop, and a 0.00-gallon "stop" isn't worth reporting.
-        if station is _STARTING_TANK or gallons == 0:
-            continue
-        cost = (gallons * station.price_per_gallon).quantize(CENT, ROUND_HALF_UP)
-        stops.append(FuelStop(station=station, gallons=gallons, cost=cost))
+        if station is _STARTING_TANK:
+            continue  # the starting tank isn't a real stop
+        bought_miles += miles
+        gallons = _gallons(miles, mpg)
+        if gallons > 0:  # a 0.00-gallon "stop" isn't worth reporting
+            stops.append(FuelStop(station, gallons, _cost(gallons, station.price_per_gallon)))
 
+    starting_fuel = None
+    if first_station is not None:
+        # The tank is empty at the finish, so every mile not covered by fuel
+        # bought along the way was driven on the starting tank.
+        gallons = _gallons(trip_miles - bought_miles, mpg)
+        if gallons > 0:
+            cost = _cost(gallons, first_station.price_per_gallon)
+            starting_fuel = StartingFuel(first_station, gallons, cost)
+
+    charged = [*stops, *([starting_fuel] if starting_fuel else [])]
     return FuelPlan(
         stops=stops,
-        total_gallons=sum((stop.gallons for stop in stops), Decimal("0.00")),
-        total_cost=sum((stop.cost for stop in stops), Decimal("0.00")),
+        starting_fuel=starting_fuel,
+        total_gallons=sum((line.gallons for line in charged), Decimal("0.00")),
+        total_cost=sum((line.cost for line in charged), Decimal("0.00")),
         starts_with_full_tank=starts_with_full_tank,
     )
+
+
+def _gallons(miles: float, mpg: float) -> Decimal:
+    return Decimal(miles / mpg).quantize(CENT, ROUND_HALF_UP)
+
+
+def _cost(gallons: Decimal, price_per_gallon: Decimal) -> Decimal:
+    return (gallons * price_per_gallon).quantize(CENT, ROUND_HALF_UP)

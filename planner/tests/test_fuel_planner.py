@@ -137,11 +137,20 @@ class EmptyTankStartTests(SimpleTestCase):
 
 
 class FullTankStartTests(SimpleTestCase):
-    def test_short_trip_needs_no_stops(self):
-        result = plan([], trip_miles=300, full_tank=True)
+    """No station near the start: the trip starts on a full tank. The fuel used
+    from it is charged at the price of the first station along the route."""
+
+    def test_short_trip_charges_starting_fuel_at_first_station_price(self):
+        result = plan(
+            [station("B", 100, "3.20"), station("C", 250, "2.90")], trip_miles=300, full_tank=True
+        )
 
         self.assertEqual(result.stops, [])
-        self.assertEqual(result.total_cost, Decimal("0.00"))
+        self.assertEqual(result.starting_fuel.station.station_id, B)
+        self.assertEqual(result.starting_fuel.gallons, Decimal("30.00"))
+        self.assertEqual(result.starting_fuel.cost, Decimal("96.00"))
+        self.assertEqual(result.total_gallons, Decimal("30.00"))
+        self.assertEqual(result.total_cost, Decimal("96.00"))
         self.assertTrue(result.starts_with_full_tank)
 
     def test_stops_at_cheapest_station_in_range(self):
@@ -149,9 +158,24 @@ class FullTankStartTests(SimpleTestCase):
 
         result = plan(stations, trip_miles=800, full_tank=True)
 
-        # Drive on the free starting tank to the cheapest station in range (C),
+        # Drive on the starting tank to the cheapest station in range (C),
         # arriving with 50 mi left; buy the remaining 300 mi (30 gal) there.
         self.assertEqual(summary(result), [(C, "30.00", "90.00")])
+        # The 500 miles of starting fuel (50 gal) are charged at B, the first station.
+        self.assertEqual(result.starting_fuel.gallons, Decimal("50.00"))
+        self.assertEqual(result.starting_fuel.cost, Decimal("175.00"))
+        self.assertEqual(result.total_gallons, Decimal("80.00"))
+        self.assertEqual(result.total_cost, Decimal("265.00"))
+
+    def test_without_any_station_the_starting_fuel_cannot_be_priced(self):
+        result = plan([], trip_miles=300, full_tank=True)
+
+        self.assertIsNone(result.starting_fuel)
+        self.assertEqual(result.total_cost, Decimal("0.00"))
+        self.assertTrue(result.starts_with_full_tank)
+
+    def test_empty_tank_start_has_no_starting_fuel_line(self):
+        self.assertIsNone(plan([station("A", 0, "3.00")], trip_miles=100).starting_fuel)
 
     def test_gap_longer_than_range_raises(self):
         with self.assertRaises(FuelPlanError):
@@ -237,3 +261,27 @@ class OptimalityTests(SimpleTestCase):
                 else:
                     result = plan_fuel_stops(stations, trip, 40, 1, starts_with_full_tank=False)
                     self.assertEqual(result.total_cost, expected)
+
+    def test_full_tank_starts_match_brute_force_too(self):
+        rng = random.Random(2027)
+        prices = ["2.50", "2.75", "3.00", "3.25", "3.50", "3.75", "4.00"]
+
+        for trial in range(200):
+            trip = rng.randint(1, 150)
+            stations = [
+                station(chr(66 + n), rng.randint(1, trip), rng.choice(prices))
+                for n in range(rng.randint(0, 5))
+            ]
+            # A full tank at the start is a free station at mile 0 for the brute force.
+            free_start = station("@", 0, "0")  # whole miles, like the brute force
+            expected = brute_force_cheapest_cost([free_start, *stations], trip, tank_miles=40)
+
+            with self.subTest(trial=trial, trip=trip):
+                if expected is None:
+                    with self.assertRaises(FuelPlanError):
+                        plan_fuel_stops(stations, trip, 40, 1, starts_with_full_tank=True)
+                    continue
+                result = plan_fuel_stops(stations, trip, 40, 1, starts_with_full_tank=True)
+                self.assertEqual(sum((s.cost for s in result.stops), Decimal("0")), expected)
+                if stations:  # the starting tank is fully used, up to the trip length
+                    self.assertEqual(result.starting_fuel.gallons, Decimal(min(trip, 40)))
