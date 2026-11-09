@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if plan %}{{ plan.start.label }} → {{ plan.finish.label }} · {% endif %}Fuel Route Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root { --ink: #1d2733; --muted: #5d6b7a; --line: #e3e8ee; --accent: #1f6feb; --start: #1a7f37; --finish: #cf222e; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); }
+    #map { position: absolute; inset: 0; }
+    .panel { position: absolute; z-index: 1000; top: 12px; left: 12px; width: min(360px, calc(100% - 24px));
+             max-height: calc(100% - 24px); overflow: auto; background: #fff; border-radius: 10px;
+             box-shadow: 0 4px 18px rgba(0, 0, 0, .18); padding: 16px; }
+    h1 { font-size: 16px; margin: 0 0 12px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .stat span { display: block; color: var(--muted); font-size: 12px; }
+    .stat strong { font-size: 18px; }
+    .stat.total strong { color: var(--accent); }
+    ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+    li { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    li small { color: var(--muted); display: block; }
+    .badge, .stop-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+                         background: var(--accent); color: #fff; font-weight: 700; font-size: 12px; }
+    .stop-icon { border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+    .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+    .error { max-width: 460px; margin: 15vh auto; padding: 24px; border: 1px solid var(--line); border-radius: 10px; }
+    .error h1 { color: var(--finish); }
+    code { background: #f3f5f7; padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+{% if error %}
+  <div class="error">
+    <h1>Couldn't plan this trip</h1>
+    <p>{{ error }}</p>
+    <p class="note">Example: <code>?start=Chicago, IL&amp;finish=Denver, CO</code></p>
+  </div>
+{% else %}
+  <div id="map"></div>
+  <aside class="panel">
+    <h1>{{ plan.start.label }} → {{ plan.finish.label }}</h1>
+    <div class="stats">
+      <div class="stat"><span>Distance</span><strong>{{ plan.distance_miles|floatformat:0 }} mi</strong></div>
+      <div class="stat"><span>Driving time</span><strong>{{ plan.duration_hours|floatformat:1 }} h</strong></div>
+      <div class="stat"><span>Fuel</span><strong>{{ plan.fuel_summary.total_gallons|floatformat:1 }} gal</strong></div>
+      <div class="stat total"><span>Total fuel cost</span><strong>${{ plan.fuel_summary.total_cost_usd|floatformat:2 }}</strong></div>
+    </div>
+    <ol>
+      {% for stop in plan.fuel_stops %}
+        <li>
+          <span class="badge">{{ stop.stop_number }}</span>
+          <div>{{ stop.name }}<small>{{ stop.city }}, {{ stop.state }} · mile {{ stop.route_mile|floatformat:0 }}</small></div>
+          <div>${{ stop.cost_usd|floatformat:2 }}<small>{{ stop.gallons|floatformat:1 }} gal @ ${{ stop.price_per_gallon|floatformat:3 }}</small></div>
+        </li>
+      {% empty %}
+        <li><span></span><div>No fuel stops needed.</div><span></span></li>
+      {% endfor %}
+    </ol>
+    {% if plan.fuel_summary.starts_with_full_tank %}
+      <p class="note">No station near the start, so the trip starts with a full tank.</p>
+    {% endif %}
+    <p class="note">{{ plan.fuel_summary.miles_per_gallon }} mpg · {{ plan.fuel_summary.tank_range_miles }}-mile tank</p>
+  </aside>
+
+  {{ plan|json_script:"plan-data" }}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const plan = JSON.parse(document.getElementById("plan-data").textContent);
+    const map = L.map("map");
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    // GeoJSON is [lng, lat]; Leaflet wants [lat, lng].
+    const line = L.polyline(plan.route.coordinates.map(([lng, lat]) => [lat, lng]),
+                            { color: "#1f6feb", weight: 5, opacity: 0.8 }).addTo(map);
+    // Keep the route clear of the summary panel on wide screens.
+    const panel = document.querySelector(".panel");
+    const panelSpace = window.innerWidth > 700 ? panel.offsetWidth + 24 : 12;
+    map.fitBounds(line.getBounds(), { paddingTopLeft: [panelSpace, 30], paddingBottomRight: [30, 30] });
+
+    // Popups are built from text nodes, so station names can't inject HTML.
+    function popup(title, ...lines) {
+      const box = document.createElement("div");
+      const heading = document.createElement("strong");
+      heading.textContent = title;
+      box.append(heading);
+      for (const text of lines) {
+        box.append(document.createElement("br"), document.createTextNode(text));
+      }
+      return box;
+    }
+
+    const endpoint = (place, color, label) =>
+      L.circleMarker([place.lat, place.lng], { radius: 8, color: "#fff", weight: 2, fillColor: color, fillOpacity: 1 })
+        .bindPopup(popup(label, place.label)).addTo(map);
+    endpoint(plan.start, "#1a7f37", "Start");
+    endpoint(plan.finish, "#cf222e", "Finish");
+
+    for (const stop of plan.fuel_stops) {
+      const icon = L.divIcon({ className: "", html: `<span class="stop-icon">${stop.stop_number}</span>`, iconSize: [22, 22] });
+      L.marker([stop.lat, stop.lng], { icon }).addTo(map).bindPopup(popup(
+        `${stop.stop_number}. ${stop.name}`,
+        `${stop.address}, ${stop.city}, ${stop.state}`,
+        `Mile ${Math.round(stop.route_mile)} · $${stop.price_per_gallon.toFixed(3)}/gal`,
+        `${stop.gallons.toFixed(2)} gal = $${stop.cost_usd.toFixed(2)}`,
+      ));
+    }
+  </script>
+{% endif %}
+</body>
+</html>

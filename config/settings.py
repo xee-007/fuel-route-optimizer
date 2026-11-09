@@ -118,6 +118,11 @@ STATIC_URL = "static/"
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    # A public, read-only API: no login, so skip the session/auth lookups.
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "UNAUTHENTICATED_USER": None,
+    "EXCEPTION_HANDLER": "planner.api.exceptions.api_exception_handler",
 }
 
 
