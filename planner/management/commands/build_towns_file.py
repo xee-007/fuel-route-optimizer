@@ -213,7 +213,10 @@ class Command(BaseCommand):
         # Places (cities, towns, villages) come first so they win over
         # same-named county subdivisions, whose centers are less precise.
         for path in (places, cousubs):
-            for area in read_gazetteer(path):
+            # Incorporated cities and towns before census-designated places (CDPs):
+            # "Marietta, OK" should mean the city, not a same-named CDP elsewhere.
+            areas = sorted(read_gazetteer(path), key=lambda area: area.name.endswith(" CDP"))
+            for area in areas:
                 if area.state not in US_STATES or area.name == "County subdivisions not defined":
                     continue
                 name, aliases = town_names(area.name, area.state)
