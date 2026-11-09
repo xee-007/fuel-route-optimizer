@@ -54,7 +54,7 @@
         {% if start %}
           <li>
             <span class="badge start">S</span>
-            <div>Starting tank<small>No station near the start; charged at {{ start.priced_at.name }}, {{ start.priced_at.city }}, {{ start.priced_at.state }}</small></div>
+            <div>Fuel to reach {{ start.priced_at.name }}<small>The first station on the route ({{ start.priced_at.city }}, {{ start.priced_at.state }} · mile {{ start.priced_at.route_mile|floatformat:0 }}), at its price</small></div>
             <div>${{ start.cost_usd|floatformat:2 }}<small>{{ start.gallons|floatformat:1 }} gal @ ${{ start.price_per_gallon|floatformat:3 }}</small></div>
           </li>
         {% endif %}
@@ -69,9 +69,6 @@
         <li><span></span><div>No fuel stops needed.</div><span></span></li>
       {% endfor %}
     </ol>
-    {% if plan.fuel_summary.starts_with_full_tank and not plan.fuel_summary.starting_fuel %}
-      <p class="note">The trip starts with a full tank; there's no station on this route to price it.</p>
-    {% endif %}
     <p class="note">{{ plan.fuel_summary.miles_per_gallon }} mpg · {{ plan.fuel_summary.tank_range_miles }}-mile tank</p>
   </aside>
 

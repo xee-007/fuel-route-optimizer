@@ -65,7 +65,7 @@ class StationRefSerializer(serializers.Serializer):
 
 
 class StartingFuelSerializer(serializers.Serializer):
-    """Fuel used from a full starting tank, charged at the first station along the route."""
+    """The fuel used to reach the first station along the route, charged at its price."""
 
     gallons = RoundedNumberField(decimal_places=2)
     price_per_gallon = RoundedNumberField(source="station.price_per_gallon", decimal_places=8)
@@ -95,7 +95,6 @@ class TripPlanSerializer(serializers.Serializer):
             "tank_range_miles": settings.VEHICLE_RANGE_MILES,
             "total_gallons": float(plan.fuel_plan.total_gallons),
             "total_cost_usd": float(plan.fuel_plan.total_cost),
-            "starts_with_full_tank": plan.fuel_plan.starts_with_full_tank,
             "starting_fuel": (
                 StartingFuelSerializer(plan.fuel_plan.starting_fuel).data
                 if plan.fuel_plan.starting_fuel

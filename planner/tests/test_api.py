@@ -99,9 +99,18 @@ class RoutePlanApiTests(TestCase):
 
         self.assertEqual(summary["miles_per_gallon"], 10)
         self.assertEqual(summary["tank_range_miles"], 500)
+        self.assertEqual(
+            list(summary),
+            [
+                "miles_per_gallon",
+                "tank_range_miles",
+                "total_gallons",
+                "total_cost_usd",
+                "starting_fuel",
+            ],
+        )
         self.assertAlmostEqual(summary["total_gallons"], ROUTE_MILES / 10, delta=0.05)
-        self.assertIs(summary["starts_with_full_tank"], False)
-        self.assertIsNone(summary["starting_fuel"])
+        self.assertIsNone(summary["starting_fuel"])  # station 1 is right at the start
 
     def test_total_cost_equals_sum_of_stop_costs(self):
         data = self.get_plan().json()
@@ -122,12 +131,13 @@ class RoutePlanApiTests(TestCase):
             expected = (gallons * price).quantize(Decimal("0.01"), ROUND_HALF_UP)
             self.assertEqual(Decimal(str(stop["cost_usd"])), expected, stop["name"])
 
-    def test_total_includes_starting_fuel_when_trip_starts_full(self):
-        FuelStation.objects.filter(opis_id=1).delete()
+    def test_total_includes_fuel_to_reach_the_first_station(self):
+        FuelStation.objects.filter(opis_id=1).delete()  # no station at the start
 
-        summary = self.get_plan().json()["fuel_summary"]
+        data = self.get_plan().json()
 
-        stops = sum(Decimal(str(s["cost_usd"])) for s in self.get_plan().json()["fuel_stops"])
+        summary = data["fuel_summary"]
+        stops = sum(Decimal(str(stop["cost_usd"])) for stop in data["fuel_stops"])
         starting = Decimal(str(summary["starting_fuel"]["cost_usd"]))
         self.assertEqual(Decimal(str(summary["total_cost_usd"])), stops + starting)
         self.assertAlmostEqual(summary["total_gallons"], ROUTE_MILES / 10, delta=0.05)
@@ -152,30 +162,18 @@ class RoutePlanApiTests(TestCase):
 
         self.assertEqual(self.post.call_count, 1)
 
-    def test_falls_back_to_full_tank_when_no_station_near_start(self):
+    def test_first_stop_is_the_first_station_when_none_is_at_the_start(self):
         FuelStation.objects.filter(opis_id=1).delete()
 
         data = self.get_plan().json()
 
-        self.assertIs(data["fuel_summary"]["starts_with_full_tank"], True)
-        self.assertNotEqual(data["fuel_stops"][0]["route_mile"], 0.0)
-        # 500 miles from the starting tank, charged at the first station along
-        # the route (station 2, $3.20/gal).
-        self.assertEqual(
-            data["fuel_summary"]["starting_fuel"],
-            {
-                "gallons": 50.0,
-                "price_per_gallon": 3.2,
-                "cost_usd": 160.0,
-                "priced_at": {
-                    "station_id": 2,
-                    "name": "Station 2",
-                    "city": "Town",
-                    "state": "KS",
-                    "route_mile": data["fuel_summary"]["starting_fuel"]["priced_at"]["route_mile"],
-                },
-            },
-        )
+        first_stop = data["fuel_stops"][0]
+        self.assertEqual(first_stop["station_id"], 2)
+        # The ~106 miles to get there are charged at station 2's price ($3.20).
+        starting = data["fuel_summary"]["starting_fuel"]
+        self.assertEqual(starting["priced_at"]["station_id"], 2)
+        self.assertAlmostEqual(starting["gallons"], first_stop["route_mile"] / 10, delta=0.01)
+        self.assertEqual(starting["price_per_gallon"], 3.2)
 
     def assert_error(self, response, status: int, code: str) -> str:
         self.assertEqual(response.status_code, status)
