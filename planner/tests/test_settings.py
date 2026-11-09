@@ -13,8 +13,8 @@ class VehicleSettingsTests(SimpleTestCase):
         self.assertEqual(settings.VEHICLE_RANGE_MILES, 500)
         self.assertEqual(settings.VEHICLE_MPG, 10)
 
-    def test_minimum_saving_worth_an_extra_stop_is_five_cents(self):
-        self.assertEqual(settings.MIN_SAVING_PER_GALLON, Decimal("0.05"))
+    def test_an_extra_stop_must_save_at_least_three_dollars(self):
+        self.assertEqual(settings.MIN_SAVING_PER_STOP, Decimal("3.00"))
 
 
 class RequireEnvTests(SimpleTestCase):

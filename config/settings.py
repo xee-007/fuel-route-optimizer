@@ -134,14 +134,9 @@ VEHICLE_MPG = 10
 
 # How far off the route a station may be and still count as "on the way".
 FUEL_CORRIDOR_MILES = 10
-# Keep only the cheapest station in each stretch of this length, so the plan
-# never stops twice within a few miles just to save a cent.
-STOP_SPACING_MILES = 25
-# The tank starts empty and is filled at the cheapest station this close to the start.
-START_STATION_RADIUS_MILES = 25
-# A cheaper station is only worth an extra stop if it saves at least this much
-# per gallon. Set to 0 for the mathematically cheapest plan (more stops).
-MIN_SAVING_PER_GALLON = Decimal("0.05")
+# An extra fuel stop has to save at least this much money (USD) to be worth it.
+# Set to 0 for the mathematically cheapest plan (more, smaller stops).
+MIN_SAVING_PER_STOP = Decimal("3.00")
 
 # OpenRouteService (free routing API). Get a key at https://openrouteservice.org.
 ORS_API_KEY = os.environ.get("ORS_API_KEY", "")

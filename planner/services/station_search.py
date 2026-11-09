@@ -8,14 +8,13 @@ Find the fuel stations that are on the way.
 """
 
 import math
-from collections.abc import Iterable
 
 import numpy as np
 from scipy.spatial import cKDTree
 
 from planner.models import FuelStation
 from planner.services.fuel_planner import StationCandidate
-from planner.services.geo import EARTH_RADIUS_MILES, Coordinates, haversine_miles, resample_route
+from planner.services.geo import EARTH_RADIUS_MILES, Coordinates, resample_route
 
 MILES_PER_DEGREE_OF_LATITUDE = 69.0
 
@@ -45,39 +44,6 @@ def find_stations_along_route(coords: Coordinates, corridor_miles: float) -> lis
         if distance <= corridor_miles
     ]
     return sorted(found, key=lambda station: station.route_mile)
-
-
-def find_start_station(lat: float, lng: float, radius_miles: float) -> StationCandidate | None:
-    """The cheapest station within `radius_miles` of a point (the nearest one on a tie)."""
-    nearby = []
-    for row in _stations_in_box(lat, lat, lng, lng, radius_miles):
-        distance = float(haversine_miles(lat, lng, row["lat"], row["lng"]))
-        if distance <= radius_miles:
-            nearby.append((row["price_per_gallon"], distance, row))
-
-    if not nearby:
-        return None
-    _, _, cheapest = min(nearby, key=lambda item: (item[0], item[1]))
-    return _candidate(cheapest, route_mile=0.0)
-
-
-def thin_stations(
-    candidates: Iterable[StationCandidate], spacing_miles: float
-) -> list[StationCandidate]:
-    """Keep only the cheapest station in each `spacing_miles` stretch of the route.
-
-    Stopping twice within a few miles to save a cent isn't a sensible plan.
-    """
-    cheapest_per_stretch: dict[int, StationCandidate] = {}
-    for station in candidates:
-        stretch = math.floor(station.route_mile / spacing_miles)
-        current = cheapest_per_stretch.get(stretch)
-        if current is None or (station.price_per_gallon, station.route_mile) < (
-            current.price_per_gallon,
-            current.route_mile,
-        ):
-            cheapest_per_stretch[stretch] = station
-    return sorted(cheapest_per_stretch.values(), key=lambda station: station.route_mile)
 
 
 def _stations_in_box(

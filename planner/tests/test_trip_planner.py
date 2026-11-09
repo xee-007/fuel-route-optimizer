@@ -31,7 +31,7 @@ def add_station_at_mile(opis_id: int, mile: float, price: str) -> None:
 
 
 @mock.patch("planner.services.trip_planner.get_route", return_value=ROUTE)
-class ThinningNeverBlocksAPossibleTripTests(TestCase):
+class UsesEveryStationAlongTheRouteTests(TestCase):
     def setUp(self):
         Town.objects.create(
             name="Start Town", normalized_name="start town", state="KS", lat=40.0, lng=-110.0
@@ -39,8 +39,8 @@ class ThinningNeverBlocksAPossibleTripTests(TestCase):
         Town.objects.create(
             name="End Town", normalized_name="end town", state="KS", lat=40.0, lng=-91.1
         )
-        # Thinning keeps one station per 25-mile stretch: 101 over 124 and 620
-        # over 604, which leaves a 519-mile gap. Every station: at most 480 miles.
+        # The plan needs mile 124, a pricier station right after a cheap one:
+        # without it the gap from mile 101 to 604 is longer than a tank.
         for opis_id, mile, price in [
             (1, 0, "3.00"),
             (2, 101, "3.00"),
@@ -51,13 +51,15 @@ class ThinningNeverBlocksAPossibleTripTests(TestCase):
         ]:
             add_station_at_mile(opis_id, mile, price)
 
-    def test_plans_with_every_station_when_thinning_leaves_a_gap(self, _):
+    def test_a_pricier_station_bridges_a_long_gap(self, _):
         plan = plan_trip("Start Town, KS", "End Town, KS")
 
-        # Mile 124 (dropped by thinning) bridges the gap: from there a full tank
-        # reaches the cheaper station at mile 620, so 604 isn't needed.
+        # Mile 124 bridges the gap: from there a full tank reaches the cheaper
+        # station at mile 620, so 604 isn't needed.
         stop_ids = [stop.station.station_id for stop in plan.fuel_plan.stops]
-        self.assertEqual(stop_ids, [1, 2, 3, 5])
+        self.assertIn(3, stop_ids)
+        self.assertIn(5, stop_ids)
+        self.assertNotIn(4, stop_ids)
 
     def test_a_real_gap_is_reported_with_its_real_miles(self, _):
         FuelStation.objects.filter(opis_id=3).delete()  # now 101 -> 604 is 503 miles

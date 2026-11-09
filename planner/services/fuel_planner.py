@@ -2,7 +2,9 @@
 Choose where to buy fuel along a route, and how much, so the trip costs as little as possible.
 
 Stations are points along the route (mile markers from the start) and the tank
-holds `tank_range_miles` worth of fuel. This greedy rule gives the cheapest plan:
+holds `tank_range_miles` worth of fuel. The trip starts with just enough fuel to
+reach the first station, and that fuel is charged at the first station's price.
+From there, this greedy rule gives the cheapest plan:
 
     At each station:
       1. If a CHEAPER station is within range, buy just enough fuel to reach it.
@@ -13,10 +15,11 @@ Why it's optimal: fuel is never carried past a cheaper station (it's better
 bought there), and when every reachable station is pricier, filling up here
 buys as much of the cheaper fuel as the tank can hold.
 
-Saving a cent or two isn't worth an extra stop, so `min_saving_per_gallon` sets
-how much cheaper a station must be to count as "cheaper" (rule 1). After filling
-up (rule 3), the plan drives to the farthest station priced within that margin
-of the cheapest one. With a margin of 0 the plan is exactly the cheapest.
+Saving a dollar or two isn't worth an extra stop, so with `min_saving_per_stop`
+the cheapest plan is then simplified: for each stop, try driving straight past it
+(from the stop before to the stop after, without stopping in between). If that
+plan has fewer stops and costs less than that much more per stop saved, keep it.
+With 0, the plan is exactly the cheapest.
 
 This module is plain Python (no Django), so it's easy to test and reason about.
 """
@@ -52,8 +55,8 @@ class FuelStop:
 
 @dataclass(frozen=True)
 class StartingFuel:
-    """Fuel used from a tank that was full at the start, charged at the price
-    of `station`: the first station along the route."""
+    """The fuel used to reach the first station along the route (`station`),
+    charged at that station's price."""
 
     station: StationCandidate
     gallons: Decimal
@@ -63,28 +66,13 @@ class StartingFuel:
 @dataclass(frozen=True)
 class FuelPlan:
     stops: list[FuelStop]
-    starting_fuel: StartingFuel | None  # only when the trip starts on a full tank
+    starting_fuel: StartingFuel | None  # None when the first station is at the start
     total_gallons: Decimal
     total_cost: Decimal
-    starts_with_full_tank: bool
 
 
 class FuelPlanError(Exception):
     """No plan is possible. The message is safe to show to API users."""
-
-
-# A full tank at the start works exactly like a free station at mile 0.
-_STARTING_TANK = StationCandidate(
-    station_id=0,
-    name="Starting tank",
-    address="",
-    city="",
-    state="",
-    lat=0.0,
-    lng=0.0,
-    price_per_gallon=Decimal("0"),
-    route_mile=0.0,
-)
 
 
 def plan_fuel_stops(
@@ -92,26 +80,34 @@ def plan_fuel_stops(
     trip_miles: float,
     tank_range_miles: float,
     mpg: float,
-    starts_with_full_tank: bool,
-    min_saving_per_gallon: Decimal = Decimal("0"),
+    min_saving_per_stop: Decimal = Decimal("0"),
 ) -> FuelPlan:
-    """Return the cheapest set of fuel stops for the trip.
-
-    With an empty tank, there must be a station at mile 0 to fill up before leaving.
-    With a full tank, the fuel used from it is charged at the first station's price.
-    """
+    """The cheapest fuel plan, without stops that save less than `min_saving_per_stop`."""
     if trip_miles <= 0:
-        return _build_plan([], trip_miles, mpg, starts_with_full_tank, first_station=None)
+        return _build_plan([], mpg, first_station=None)
 
     # Only stations before the finish matter. Cheaper first when two share a mile marker.
     route = sorted(
         (s for s in stations if s.route_mile <= trip_miles),
         key=lambda s: (s.route_mile, s.price_per_gallon),
     )
-    if starts_with_full_tank:
-        route.insert(0, _STARTING_TANK)
-    if not route or route[0].route_mile > 0:
-        raise FuelPlanError("There is no fuel station at the start of the route.")
+    if not route:
+        raise FuelPlanError("No fuel station from the price list along this route.")
+
+    plan = _cheapest_plan(route, trip_miles, tank_range_miles, mpg)
+    if min_saving_per_stop > 0:
+        plan = _drop_stops_not_worth_it(
+            plan, route, trip_miles, tank_range_miles, mpg, min_saving_per_stop
+        )
+    return plan
+
+
+def _cheapest_plan(
+    route: list[StationCandidate], trip_miles: float, tank_range_miles: float, mpg: float
+) -> FuelPlan:
+    """The greedy rule from the top of this module. `route` is sorted by mile."""
+    if route[0].route_mile > tank_range_miles:
+        raise FuelPlanError(_gap_message(0, route[0].route_mile, trip_miles, tank_range_miles))
 
     purchases: list[tuple[StationCandidate, float]] = []  # (station, miles of fuel bought)
     fuel_left = 0.0  # miles of driving left in the tank
@@ -119,14 +115,13 @@ def plan_fuel_stops(
 
     while True:
         here = route[i]
-        reachable = [
-            j
-            for j in range(i + 1, len(route))
-            if route[j].route_mile - here.route_mile <= tank_range_miles
-        ]
-        worth_stopping_below = here.price_per_gallon - min_saving_per_gallon
+        reachable = []
+        for j in range(i + 1, len(route)):
+            if route[j].route_mile - here.route_mile > tank_range_miles:
+                break  # sorted by mile, so every later station is out of range too
+            reachable.append(j)
         cheaper = next(
-            (j for j in reachable if route[j].price_per_gallon < worth_stopping_below), None
+            (j for j in reachable if route[j].price_per_gallon < here.price_per_gallon), None
         )
 
         if cheaper is not None:
@@ -138,77 +133,97 @@ def plan_fuel_stops(
             purchases.append((here, max(0.0, trip_miles - here.route_mile - fuel_left)))
             break
         elif reachable:
-            # Rule 3: fill up, then go to the cheapest station in range. Of the
-            # stations within the saving margin of that price, take the farthest:
-            # fewer stops for (at most) a few cents more.
-            cheapest_price = min(route[j].price_per_gallon for j in reachable)
-            next_i = max(
-                (
-                    j
-                    for j in reachable
-                    if route[j].price_per_gallon <= cheapest_price + min_saving_per_gallon
-                ),
-                key=lambda j: route[j].route_mile,
-            )
+            # Rule 3: fill up, then go to the cheapest station in range
+            # (the farthest one if several share that price: fewer stops).
+            next_i = min(reachable, key=lambda j: (route[j].price_per_gallon, -route[j].route_mile))
             miles_to_buy = tank_range_miles - fuel_left
         else:
-            raise FuelPlanError(_gap_message(route, i, trip_miles, tank_range_miles))
+            next_mile = route[i + 1].route_mile if i + 1 < len(route) else trip_miles
+            raise FuelPlanError(
+                _gap_message(here.route_mile, next_mile, trip_miles, tank_range_miles)
+            )
 
         purchases.append((here, miles_to_buy))
         fuel_left += miles_to_buy - (route[next_i].route_mile - here.route_mile)
         i = next_i
 
-    first_station = route[1] if starts_with_full_tank and len(route) > 1 else None
-    return _build_plan(purchases, trip_miles, mpg, starts_with_full_tank, first_station)
+    return _build_plan(purchases, mpg, first_station=route[0])
+
+
+def _drop_stops_not_worth_it(
+    plan: FuelPlan,
+    route: list[StationCandidate],
+    trip_miles: float,
+    tank_range_miles: float,
+    mpg: float,
+    min_saving_per_stop: Decimal,
+) -> FuelPlan:
+    """Skip every stop that saves less than `min_saving_per_stop`.
+
+    To skip a stop, plan again without any station between the stop before it
+    and the stop after it (or the finish). Keep the result if it has fewer stops
+    and costs less than the minimum saving per stop skipped. Repeat until every
+    stop is worth it. The first station always stays: the fuel to reach it is
+    charged at its price.
+    """
+    while True:
+        best: tuple[Decimal, FuelPlan, list[StationCandidate]] | None = None
+        for k, stop in enumerate(plan.stops):
+            if stop.station.station_id == route[0].station_id:
+                continue
+            before = plan.stops[k - 1].station.route_mile if k > 0 else route[0].route_mile
+            after = plan.stops[k + 1].station.route_mile if k + 1 < len(plan.stops) else trip_miles
+            without = [s for s in route if not before < s.route_mile < after]
+            try:
+                simpler = _cheapest_plan(without, trip_miles, tank_range_miles, mpg)
+            except FuelPlanError:
+                continue  # the trip needs a stop here
+            stops_saved = len(plan.stops) - len(simpler.stops)
+            extra_cost = simpler.total_cost - plan.total_cost
+            if stops_saved > 0 and extra_cost < min_saving_per_stop * stops_saved:
+                if best is None or extra_cost < best[0]:
+                    best = (extra_cost, simpler, without)
+        if best is None:
+            return plan
+        _, plan, route = best
 
 
 def _gap_message(
-    route: list[StationCandidate], i: int, trip_miles: float, tank_range_miles: float
+    from_mile: float, to_mile: float, trip_miles: float, tank_range_miles: float
 ) -> str:
-    here = route[i].route_mile
-    if i + 1 < len(route):
-        gap_end = f"mile {route[i + 1].route_mile:.0f}"
-    else:
-        gap_end = f"the finish (mile {trip_miles:.0f})"
+    gap_end = (
+        f"the finish (mile {trip_miles:.0f})" if to_mile >= trip_miles else f"mile {to_mile:.0f}"
+    )
     return (
-        f"No fuel station from the price list between mile {here:.0f} and {gap_end} "
+        f"No fuel station from the price list between mile {from_mile:.0f} and {gap_end} "
         f"of the route, and a full tank only lasts {tank_range_miles:g} miles."
     )
 
 
 def _build_plan(
     purchases: list[tuple[StationCandidate, float]],
-    trip_miles: float,
     mpg: float,
-    starts_with_full_tank: bool,
     first_station: StationCandidate | None,
 ) -> FuelPlan:
     stops = []
-    bought_miles = 0.0
     for station, miles in purchases:
-        if station is _STARTING_TANK:
-            continue  # the starting tank isn't a real stop
-        bought_miles += miles
         gallons = _gallons(miles, mpg)
         if gallons > 0:  # a 0.00-gallon "stop" isn't worth reporting
             stops.append(FuelStop(station, gallons, _cost(gallons, station.price_per_gallon)))
 
     starting_fuel = None
     if first_station is not None:
-        # The tank is empty at the finish, so every mile not covered by fuel
-        # bought along the way was driven on the starting tank.
-        gallons = _gallons(trip_miles - bought_miles, mpg)
+        gallons = _gallons(first_station.route_mile, mpg)  # the drive to the first station
         if gallons > 0:
             cost = _cost(gallons, first_station.price_per_gallon)
             starting_fuel = StartingFuel(first_station, gallons, cost)
 
-    charged = [*stops, *([starting_fuel] if starting_fuel else [])]
+    charged = [*([starting_fuel] if starting_fuel else []), *stops]
     return FuelPlan(
         stops=stops,
         starting_fuel=starting_fuel,
         total_gallons=sum((line.gallons for line in charged), Decimal("0.00")),
         total_cost=sum((line.cost for line in charged), Decimal("0.00")),
-        starts_with_full_tank=starts_with_full_tank,
     )
 
 
