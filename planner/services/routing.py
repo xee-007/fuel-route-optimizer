@@ -119,8 +119,9 @@ def _error_for(response: requests.Response) -> RoutingError:
     detail = _error_detail(response)
 
     if status in (401, 403):
-        logger.error("OpenRouteService rejected the API key (HTTP %s): %s", status, detail)
-        return RoutingError()
+        # A bad key or a used-up daily quota: retrying won't help.
+        logger.error("OpenRouteService rejected the request (HTTP %s): %s", status, detail)
+        return RoutingUnavailable()
     if status == 429:
         logger.warning("OpenRouteService rate limit reached: %s", detail)
         return RoutingUnavailable()
@@ -134,9 +135,10 @@ def _error_for(response: requests.Response) -> RoutingError:
 
 def _error_detail(response: requests.Response) -> str:
     try:
-        error = response.json().get("error")
+        body = response.json()
     except ValueError:
         return ""
+    error = body.get("error") if isinstance(body, dict) else body
     if isinstance(error, dict):
         return str(error.get("message", ""))
     return str(error or "")

@@ -89,16 +89,24 @@ class FetchRouteTests(SimpleTestCase):
         with self.assertRaisesMessage(NoRouteFound, "Could not find routable point"):
             fetch_route(CHICAGO, ST_LOUIS)
 
-    def test_rejected_api_key_is_logged_but_hidden_from_users(self, post):
+    def test_rejected_key_or_used_up_quota_is_unavailable_and_hidden_from_users(self, post):
+        # Retrying won't help, so it's "unavailable" (503), not "please try again".
         post.return_value = fake_response(403, {"error": "Access to this API has been disallowed"})
 
         with self.assertLogs("planner.services.routing", "ERROR") as logs:
-            with self.assertRaises(RoutingError) as raised:
+            with self.assertRaises(RoutingUnavailable) as raised:
                 fetch_route(CHICAGO, ST_LOUIS)
 
-        self.assertNotIsInstance(raised.exception, NoRouteFound)
+        self.assertEqual(raised.exception.status_code, 503)
         self.assertNotIn("disallowed", str(raised.exception))
         self.assertIn("403", "\n".join(logs.output))
+
+    def test_error_body_that_is_not_an_object_is_still_handled(self, post):
+        post.return_value = fake_response(500, ["unexpected", "shape"])
+
+        with self.assertLogs("planner.services.routing", "ERROR"):
+            with self.assertRaises(RoutingError):
+                fetch_route(CHICAGO, ST_LOUIS)
 
     def test_rate_limit_maps_to_unavailable(self, post):
         post.return_value = fake_response(429, {"error": "Rate limit exceeded"})
