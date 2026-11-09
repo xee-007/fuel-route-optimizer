@@ -18,6 +18,7 @@ returns the route, where to stop and how much fuel to buy at each stop, the tota
 
 - [Quick start](#quick-start)
 - [API](#api)
+- [Postman](#postman)
 - [How it works](#how-it-works)
 - [Assumptions](#assumptions)
 - [Design decisions](#design-decisions)
@@ -45,7 +46,7 @@ python manage.py runserver
 
 Then open <http://127.0.0.1:8000/api/v1/route-plan/?start=Chicago,%20IL&finish=Denver,%20CO>, or the map at <http://127.0.0.1:8000/api/v1/route-plan/map/?start=Chicago,%20IL&finish=Denver,%20CO>.
 
-**Postman:** import [`postman/fuel-route-optimizer.postman_collection.json`](postman/fuel-route-optimizer.postman_collection.json). It has example trips and error cases with tests; successful trips show a summary table in the **Visualize** tab.
+**Postman:** see [Postman](#postman) for ready-made requests with tests.
 
 ## API
 
@@ -133,6 +134,28 @@ Every error has the same shape:
 | 502 | `routing_failed` | The routing service failed; trying again may help |
 | 503 | `routing_unavailable` | Routing is unavailable: rate limit, used-up daily quota, rejected or missing API key |
 | 504 | `routing_timeout` | The routing service took too long to respond |
+
+## Postman
+
+[`postman/fuel-route-optimizer.postman_collection.json`](postman/fuel-route-optimizer.postman_collection.json) has ready-made requests, each with tests:
+
+| Folder | Requests |
+|---|---|
+| Plan a trip | New York → Los Angeles, Chicago → Denver, Dallas → Houston, Houston → Dallas (no station in Houston), coordinates instead of town names |
+| Errors | Missing finish, unknown town, coordinates outside the USA, swapped latitude/longitude, no fuel station for 500+ miles |
+
+To use it:
+
+1. Start the server: `python manage.py runserver`.
+2. In Postman, click **Import** and choose the collection file.
+3. Send requests through Postman's **Desktop Agent** (the agent picker is at the bottom right of the Postman window). The Cloud Agent runs on Postman's servers, so it can't reach `127.0.0.1` and fails with "Cannot send requests to reserved address".
+4. Open a request and click **Send**. Then look at:
+   - the response body's **Visualize** view: a summary and a table of the fuel stops;
+   - **Test Results**: the checks for that request (status, total cost = fuel stops + starting fuel, response time);
+   - `map_url` in the response: open it in a browser to see the route and stops on a map.
+5. To run every request and its tests at once, use **Run collection** on the collection.
+
+The server address is the collection variable `base_url` (default `http://127.0.0.1:8000`); change it if your server runs elsewhere. Each new trip makes one routing API call; sending it again is served from the cache.
 
 ## How it works
 
