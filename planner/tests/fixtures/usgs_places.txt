@@ -1,0 +1,17 @@
+﻿feature_id|feature_name|feature_class|state_name|state_numeric|county_name|county_numeric|map_name|date_created|date_edited|bgn_type|bgn_authority|bgn_date|prim_lat_dms|prim_long_dms|prim_lat_dec|prim_long_dec|source_lat_dms|source_long_dms|source_lat_dec|source_long_dec
+277593|San Francisco|Populated Place|California|06|San Francisco|075|San Francisco North|01/19/1981|06/07/2022|Official|Board Decision|01/01/1931|374630N|1222510W|37.775|-122.4194444|||0.0|0.0
+366212|Honolulu|Populated Place|Hawaii|15|Honolulu|003|Honolulu|02/06/1981|09/30/2019|Official|Board Decision|01/01/1954|211825N|1575130W|21.3069444|-157.8583333|||0.0|0.0
+498163|Midway|Populated Place|Kentucky|21|Meade|163|Guston|09/20/1979|06/07/2022||||375707N|0861419W|37.9520122|-86.2385832|||0.0|0.0
+498164|Midway|Populated Place|Kentucky|21|Woodford|239|Midway|09/20/1979|06/07/2022||||380903N|0844102W|38.1509077|-84.6838344|||0.0|0.0
+649745|Prosper|Populated Place|Minnesota|27|Fillmore|045|Mabel|01/11/1980|06/07/2022||||433028N|0915211W|43.507745|-91.8695993|||0.0|0.0
+1170190|Breezewood|Populated Place|Pennsylvania|42|Bedford|009|Breezewood|08/02/1979|06/07/2022||||395957N|0781419W|39.9992505|-78.2386229|||0.0|0.0
+2397858|Township of Prosper|Civil|Minnesota|27|Lake of the Woods|077|Williams NW|02/27/2008|08/12/2023||||485513N|0945558W|48.9201912|-94.9328071|||0.0|0.0
+2411786|City of San Francisco|Civil|California|06|San Francisco|075|San Francisco North|03/11/2008|08/10/2023||||374642N|1222633W|37.7782253|-122.4425085|||0.0|0.0
+2630783|Urban Honolulu Census Designated Place|Census|Hawaii|15|Honolulu|003|Honolulu|06/11/2010|08/09/2023||||211933N|1575043W|21.3257048|-157.8453493|||0.0|0.0
+1195919|Laros (historical)|Populated Place|Pennsylvania|42|Lehigh|077|Topton|08/30/1990|06/07/2022||||403416N|0753902W|40.5712067|-75.6504667|||0.0|0.0
+44815|Red Lake|Populated Place|Arizona|04|Coconino|005|Tonalea|02/08/1980|06/07/2022||||361921N|1105658W|36.3224925|-110.9493112|||0.0|0.0
+1853161|LeChee|Populated Place|Arizona|04|Coconino|005|Tucker Mesa|02/03/2000|06/07/2022||||350156N|1104510W|35.0322421|-110.7529145|||0.0|0.0
+2408596|LeChee Census Designated Place|Census|Arizona|04|Coconino|005|White Dome|03/11/2008|08/09/2023||||365216N|1112558W|36.8710322|-111.4327727|||0.0|0.0
+2805225|Red Lake Census Designated Place|Census|Arizona|04|Coconino|005|Williams North|01/28/2020|08/08/2023||||352129N|1121013W|35.3579435|-112.1704049|||0.0|0.0
+2805226|Red Lake|Populated Place|Arizona|04|Coconino|005|Howard Mesa|01/28/2020|03/10/2020||||352243N|1120942W|35.3786822|-112.161532|||0.0|0.0
+780689|Butte|Populated Place|Montana|30|Silver Bow|093|Butte North|04/04/1980|06/07/2022|Official|Board Decision|01/01/1897|460014N|1123205W|46.0038153|-112.5347447|||0.0|0.0

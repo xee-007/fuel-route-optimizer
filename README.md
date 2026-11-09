@@ -26,17 +26,25 @@ python manage.py runserver
 | File | What it is |
 |---|---|
 | `data/fuel_prices.csv` | The provided list of truck stops and their retail fuel prices |
-| `data/us_towns.csv` | US town center coordinates, built from the public-domain [US Census Gazetteer](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html) files |
+| `data/us_towns.csv` | ~166k US towns with the coordinates of their center, built from two public-domain sources (below) |
 
-The fuel price list has addresses but no coordinates, so each station is placed at the center of its town. Doing this once at setup means API requests never need a geocoding call. About 3% of stations are in very small unincorporated places that the Census list doesn't include; those are skipped (run `load_fuel_stations -v 2` to list them).
+The fuel price list has addresses but no coordinates, so each station is placed at the center of its town. Doing this once at setup means API requests never need a geocoding call. 99.5% of US stations are placed; the rest are in places too small for either source (run `load_fuel_stations -v 2` to list them).
 
-To rebuild `data/us_towns.csv`, download the 2025 "Places" and "County Subdivisions" national Gazetteer files into `data/raw/` and run:
+**Where town centers come from**
+
+- The [US Census Gazetteer](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html) lists every official town, but its point is a geometric "internal point" that can be far from downtown. San Francisco's is in the Pacific, because the city limits include ocean.
+- [USGS Geographic Names](https://www.usgs.gov/us-board-on-geographic-names/domestic-names) gives the traditional center of every populated place. Each Census town moves to the USGS center with the same name in the same county, as long as the move is plausible for the town's size. USGS places missing from the Census list (e.g. Breezewood, PA) are added when their name is unique in their state.
+
+To rebuild `data/us_towns.csv`, download into `data/raw/` the 2025 "Places" and "County Subdivisions" national Gazetteer files and the USGS [`DomesticNames_National_Text.zip`](https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/DomesticNames/DomesticNames_National_Text.zip), then run:
 
 ```bash
 python manage.py build_towns_file \
     --places data/raw/2025_Gaz_place_national.txt \
-    --cousubs data/raw/2025_Gaz_cousubs_national.txt
+    --cousubs data/raw/2025_Gaz_cousubs_national.txt \
+    --usgs data/raw/Text/DomesticNames_National.txt
 ```
+
+**Coverage of the price list.** The provided list has few stations in some regions. California, for example, has only 8, all in the far south-east. A trip with more than 500 miles between known stations (e.g. San Francisco → Las Vegas) can't be planned, and the API says so with a clear error.
 
 ## Development
 
