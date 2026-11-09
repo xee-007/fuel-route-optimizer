@@ -2,7 +2,8 @@ from django.db import models
 
 
 class Town(models.Model):
-    """A US town with the coordinates of its center (from the US Census Gazetteer).
+    """A US town with the coordinates of its center (US Census towns, placed at
+    their USGS town center; see the build_towns_file command).
 
     Used to place fuel stations on the map and to turn "City, ST" input into
     coordinates without calling an external geocoding API.

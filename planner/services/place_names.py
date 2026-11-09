@@ -86,7 +86,7 @@ def normalize_place_name(name: str) -> str:
 
 def state_code(text: str) -> str | None:
     """Return the two-letter code for a US state given as a code or full name."""
-    cleaned = text.strip()
+    cleaned = text.strip().replace(".", "")  # "D.C." -> "DC"
     if cleaned.upper() in US_STATES:
         return cleaned.upper()
     return _STATE_CODES_BY_NAME.get(cleaned.lower())

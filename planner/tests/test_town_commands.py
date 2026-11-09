@@ -57,6 +57,10 @@ class BuildTownsFileTests(SimpleTestCase):
         self.assertIn(("Macon", "GA"), towns)  # "Macon-Bibb County"
         self.assertIn(("Butte", "MT"), towns)  # "Butte-Silver Bow (balance)"
 
+    def test_incorporated_city_wins_over_same_named_census_designated_place(self):
+        # "Marietta CDP" comes first in the file, but "Marietta, OK" means the city on I-35.
+        self.assertEqual(self.build()[("Marietta", "OK")], ("33.936172", "-97.124716"))
+
     def test_real_town_wins_over_another_towns_alias(self):
         # "Tharptown (Uniontown) CDP" comes first in the file, but "Uniontown, PA"
         # must still point at the real city of Uniontown.
@@ -106,6 +110,7 @@ class BuildTownsFileTests(SimpleTestCase):
 
     def test_adds_everyday_names_for_known_census_naming_quirks(self):
         towns = self.build()
+        self.assertEqual(towns[("New York City", "NY")], towns[("New York", "NY")])
         self.assertEqual(towns[("Honolulu", "HI")], towns[("Urban Honolulu", "HI")])
         self.assertEqual(towns[("Boise", "ID")], towns[("Boise City", "ID")])
 
