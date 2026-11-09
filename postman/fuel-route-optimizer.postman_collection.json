@@ -106,11 +106,11 @@
           }
         },
         {
-          "name": "Houston → Dallas (no station near the start)",
+          "name": "Houston → Dallas (no station in Houston)",
           "request": {
             "method": "GET",
             "header": [],
-            "description": "The price list has no station near Houston, so the trip starts on a full tank; that fuel is charged at the first station along the route (see starting_fuel).",
+            "description": "The price list has no station in Houston, so the trip starts with just enough fuel to reach the first station along the route (Huntsville, mile 69), charged at its price (see starting_fuel).",
             "url": {
               "raw": "{{base_url}}/api/v1/route-plan/?start=Houston, TX&finish=Dallas, TX",
               "host": [
@@ -208,8 +208,9 @@
               "  <tr><th>#</th><th>Station</th><th>Where</th><th>Mile</th><th>Price</th><th>Gallons</th><th>Cost</th></tr>",
               "  {{#if plan.fuel_summary.starting_fuel}}",
               "  <tr>",
-              "    <td>S</td><td>Starting tank (no station near the start)</td>",
-              "    <td>priced at {{plan.fuel_summary.starting_fuel.priced_at.name}}</td><td></td>",
+              "    <td>S</td><td>Fuel to reach the first station</td>",
+              "    <td>priced at {{plan.fuel_summary.starting_fuel.priced_at.name}}</td>",
+              "    <td class=\"num\">{{plan.fuel_summary.starting_fuel.priced_at.route_mile}}</td>",
               "    <td class=\"num\">\\${{plan.fuel_summary.starting_fuel.price_per_gallon}}</td>",
               "    <td class=\"num\">{{plan.fuel_summary.starting_fuel.gallons}}</td>",
               "    <td class=\"num\">\\${{plan.fuel_summary.starting_fuel.cost_usd}}</td>",
